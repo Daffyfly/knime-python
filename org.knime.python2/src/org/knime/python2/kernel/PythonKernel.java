@@ -175,6 +175,8 @@ public class PythonKernel implements AutoCloseable {
 
     private Future<PythonKernelException> m_pythonKernelMonitorResult;
 
+    private Thread m_checkCanceledThread;
+
     /**
      * Creates a python kernel by starting a python process and connecting to it.
      *
@@ -728,6 +730,29 @@ public class PythonKernel implements AutoCloseable {
         }
     }
 
+    private void checkCanceled(final ExecutionContext exec) {
+        if(m_checkCanceledThread != null && m_checkCanceledThread.isAlive()) {
+            m_checkCanceledThread.interrupt();
+        }
+        m_checkCanceledThread = new Thread(new Runnable(){
+
+            @Override
+            public void run() {
+                try {
+                    while(m_process.isAlive()) {
+                        exec.checkCanceled();
+                        Thread.sleep(1000);
+                    }
+                } catch(CanceledExecutionException ex) {
+                    close();
+                } catch (InterruptedException ex) {
+                    //Interruption is expected
+                }
+
+            }});
+        m_checkCanceledThread.start();
+    }
+
     /**
      * Get a {@link BufferedDataTable} from the workspace.
      *
@@ -746,6 +771,7 @@ public class PythonKernel implements AutoCloseable {
         m_errorPrintListener.resetErrorLoggedFlag();
         try {
             addProcessEndAction(pea);
+            checkCanceled(exec);
             final int tableSize = m_commands.getTableSize(name);
             int numberChunks = (int)Math.ceil(tableSize / (double)m_kernelOptions.getChunkSize());
             if (numberChunks == 0) {
@@ -764,6 +790,7 @@ public class PythonKernel implements AutoCloseable {
                 m_serializer.bytesIntoTable(tableCreator, bytes, m_kernelOptions.getSerializationOptions());
                 deserializationMonitor.setProgress((end + 1) / (double)tableSize);
             }
+            m_checkCanceledThread.interrupt();
             if (tableCreator != null) {
                 BufferedDataTable table = tableCreator.getTable();
                 removeProcessEndAction(pea);
