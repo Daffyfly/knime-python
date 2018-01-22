@@ -899,9 +899,14 @@ class PythonKernel(Borg):
     def write_message(self, msg):
         if not issubclass(type(msg), PythonToJavaMessage):
             raise TypeError("write_message was called with an object of a type not inheriting PythonToJavaMessage!")
-        self.write_data(msg.to_string().encode('utf-8'))
-        if msg.is_data_request():
-            return self.read_response(msg)
+        header = msg.get_header().encode('utf-8')
+        payload = msg.get_payload()
+        self.write_size(len(header))
+        self.write_size(len(payload))
+        self.write_data(header)
+        self.write_data(payload)
+        #if msg.is_data_request():
+        #    return self.read_response(msg)
 
 
     # Get the {@link Simpletype} of a column in the passed dataframe and the serializer_id

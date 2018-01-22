@@ -58,24 +58,24 @@ import org.knime.core.node.util.CheckUtils;
  */
 public class DefaultJavaToPythonResponse implements JavaToPythonResponse {
 
-    private PythonToJavaMessage m_originalMessage;
+    private CommandMessage m_originalMessage;
 
     private String m_response;
 
     /**
-     * Creates a new instance of a {@link JavaToPythonResponse} to a specific {@link PythonToJavaMessage} that holds a
+     * Creates a new instance of a {@link JavaToPythonResponse} to a specific {@link CommandMessage} that holds a
      * simple response string.
      *
      * @param originalMessage the message this response responds to
      * @param response the actual response string
      */
-    public DefaultJavaToPythonResponse(final PythonToJavaMessage originalMessage, final String response) {
+    public DefaultJavaToPythonResponse(final CommandMessage originalMessage, final String response) {
         m_originalMessage = CheckUtils.checkNotNull(originalMessage);
         m_response = CheckUtils.checkNotNull(response);
     }
 
     @Override
-    public PythonToJavaMessage getOriginalMessage() {
+    public CommandMessage getOriginalMessage() {
         return m_originalMessage;
     }
 

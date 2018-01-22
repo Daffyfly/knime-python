@@ -49,7 +49,7 @@
 package org.knime.python2.kernel;
 
 /**
- * Represents the response to a specific {@link PythonToJavaMessage} which will be sent to Python.
+ * Represents the response to a specific {@link CommandMessage} which will be sent to Python.
  *
  * @author Marcel Wiedenmann, KNIME GmbH, Konstanz, Germany
  * @author Clemens von Schwerin, KNIME GmbH, Konstanz, Germany
@@ -59,7 +59,7 @@ public interface JavaToPythonResponse {
     /**
      * @return the original message this response responds to
      */
-    PythonToJavaMessage getOriginalMessage();
+    CommandMessage getOriginalMessage();
 
     /**
      * @return the actual response string

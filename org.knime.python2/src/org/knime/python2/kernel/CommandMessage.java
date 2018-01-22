@@ -48,18 +48,32 @@
  */
 package org.knime.python2.kernel;
 
+import java.util.Map;
+
 /**
  * Message class for wrapping command or status strings received from python.
  *
  * @author Clemens von Schwerin, KNIME GmbH, Konstanz, Germany
  */
-public class PythonToJavaMessage {
+public class CommandMessage {
 
-    private String m_command;
+    private int m_msgId;
+
+    /*private String m_command;
 
     private String m_value;
 
-    private boolean m_isRequest;
+    private boolean m_isRequest; */
+
+    private byte[] m_payload;
+
+    protected Map<String,String> m_options;
+
+    private static String COMMAND_KEY = "command";
+
+    private static String ID_KEY = "command";
+
+    private static String REQUEST_KEY = "request";
 
     /**
      * Constructor.
@@ -69,44 +83,80 @@ public class PythonToJavaMessage {
      * @param isRequest true if the message is a request meaning the python process is waiting for an appropriate
      *            response false otherwise
      */
-    public PythonToJavaMessage(final String command, final String value, final boolean isRequest) {
-        m_command = command;
-        m_value = value;
-        m_isRequest = isRequest;
+    public CommandMessage(final int msgId, final String command, final byte[] value, final Map<String,String> furtherOptions) {
+        m_msgId = msgId;
+        m_options.put(COMMAND_KEY, command);
+        m_payload = value;
+        m_options.putAll(furtherOptions);
+        if(forbiddenSignsInMap()) {
+            throw new IllegalArgumentException("Illegal character (@ or =) detected in options!");
+        }
     }
 
-    /**
-     * Gets the command.
-     *
-     * @return the command
-     */
+    public CommandMessage(final String header, final byte[] payload) {
+
+        String[] options = header.split("@");
+        String key, value;
+        boolean idSet = false;
+        for(String option:options) {
+            key = option.substring(0, option.indexOf("="));
+            value = option.substring(option.indexOf("=") + 1);
+            if(key.contentEquals(ID_KEY)) {
+                m_msgId = Integer.parseInt(value);
+                idSet = true;
+            } else {
+                m_options.put(key, value);
+            }
+        }
+        if(forbiddenSignsInMap()) {
+            throw new IllegalArgumentException("Illegal character (@ or =) detected in options!");
+        }
+        if(!m_options.containsKey(COMMAND_KEY)) {
+            throw new IllegalArgumentException("No command in message " + header);
+        }
+        if(!idSet) {
+            throw new IllegalArgumentException("No id in message " + header);
+        }
+    }
+
+    private boolean forbiddenSignsInMap() {
+        for(String key:m_options.keySet()) {
+            if(m_options.get(key).contains("@") || m_options.get(key).contains("@")) {
+                return true;
+            }
+            if(key.contains("@") || key.contains("@")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public int getId() {
+        return m_msgId;
+    }
+
     public String getCommand() {
-        return m_command;
+        return m_options.get(COMMAND_KEY);
     }
 
-    /**
-     * Gets the value.
-     *
-     * @return the value
-     */
-    public String getValue() {
-        return m_value;
-    }
-
-    /**
-     * Checks if is the message is a request.
-     *
-     * @return true, if request
-     */
     public boolean isRequest() {
-        return m_isRequest;
+        String isRequest = m_options.get(REQUEST_KEY);
+        return Boolean.parseBoolean(isRequest) || isRequest.contentEquals("1");
+    }
+
+    public byte[] getPayload() {
+        return m_payload;
+    }
+
+    public String getOption(final String key) {
+        return m_options.get(key);
     }
 
     /**
      * @return the value-based representation of this message
      */
-    @Override
+    /*@Override
     public String toString() {
         return String.join(":", isRequest() ? "r" : "s", m_command, m_value);
-    }
+    }*/
 }

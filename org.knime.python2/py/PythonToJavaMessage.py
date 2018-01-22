@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from pandas.core.dtypes.missing import isnull
+from tensorflow.contrib.layers.python.layers.feature_column_ops import _check_forbidden_sequence_columns
 
 # ------------------------------------------------------------------------
 #  Copyright by KNIME AG, Zurich, Switzerland
@@ -44,59 +46,82 @@
 # ------------------------------------------------------------------------
 
 # Used for defining messages that can be sent to Java
-class PythonToJavaMessage(object):
+class CommandMessage(object):
     # @param cmd    a string command to trigger a certain Java response action
     # @param val    the value to process in Java, will be converted to string
     # @param requestsData true - the message requests data from java, false otherwise
-    def __init__(self, cmd, val, requestsData):
-        self._cmd = cmd
-        self._val = str(val)
-        self._requestsData = requestsData
-    
-    # Get the string representation of this message that can be sent over the
-    # socket connection to Java    
-    def to_string(self):
-        reqstr = "r" if self._requestsData else "s"
-        return reqstr + ":" + self._cmd + ":" + self._val
+    def __init__(self, header, payload):
+        self._header = header
+        self._options = {}
+        self._payload = payload
+        self._id = None
+        for option in header.split("@"):
+            key = option[:option.find("=")]
+            if key.lower() == "id":
+                self._id = int(option[option.find("=")+1:])
+            else:
+                self._options[option[:option.find("=")]] = option[option.find("=")+1:]
+        if self.check_forbidden_sequence_columns():
+            raise AttributeError("Forbidden character (@ or =) in message options detected!")
+        if not "command" in self._options.keys():
+            raise AttributeError("No command specified for message: " + header)
+        if self._id is None:
+            raise AttributeError("No id specified for message: " + header)
     
     def is_data_request(self):
-        return self._requestsData
+        return ("request" in self._options.keys()) and (self._options["request"].lower() in ["true", "1"])
     
-    # Parse the response coming back from Java. Returns None for messages
-    # that are not requests.
-    def process_response(self, val):
-        return None
+    def get_id(self):
+        return self._id
+    
+    def get_command(self):
+        return self._options["command"]
+    
+    def get_payload(self):
+        return self._payload
+    
+    def get_header(self):
+        return '@id=' + self._id + ('@' + key + '=' + self._options[key] for key in self._options)
+    
+    def forbidden_signs_in_options(self):
+        for key in self._options:
+            if key.find("@") > 0 or key.find("=") > 0:
+                return True
+            if self._options[key].find("@") > 0 or self._options[key].find("=") > 0:
+                return True
+        return False
+    
 
 # Used for indicating the successful termination of a command        
-class SuccessMessage(PythonToJavaMessage):
-    def __init__(self):
-        PythonToJavaMessage.__init__(self, 'success', '0', False)
+class SuccessMessage(CommandMessage):
+    def __init__(self, id):
+        CommandMessage.__init__(self, '@id=' + id + '@command=success', None)
 
 # Used for requesting a serializer from java. The value may either be the
 # python type that is to be serialized or the extension id
-class SerializerRequest(PythonToJavaMessage):
-    def __init__(self, val):
-        PythonToJavaMessage.__init__(self, 'serializer_request', val, True)
+class SerializerRequest(CommandMessage):
+    def __init__(self, id, val):
+        CommandMessage.__init__(self, '@id=' + id + '@command=serializer_request@request=true', val)
     
-    def process_response(self, val):
-        try:
-            res = val.split(';')
-            if(res[0] != ''):
-                return res
-        except:
-            pass
-        return None
+#     def process_response(self, val):
+#         try:
+#             res = val.split(';')
+#             if(res[0] != ''):
+#                 return res
+#         except:
+#             pass
+#         return None
 
 # Used for requesting a deserializer from java. The value should be the extension id.       
-class DeserializerRequest(PythonToJavaMessage):
+class DeserializerRequest(CommandMessage):
     def __init__(self, val):
-        PythonToJavaMessage.__init__(self, 'deserializer_request', val, True)
+        CommandMessage.__init__(self, '@id=' + id + '@command=deserializer_request@request=true', val)
     
-    def process_response(self, val):
-        try:
-            res = val.split(';')
-            if(res[0] != ''):
-                return res
-        except:
-            pass
-        return None
+#     def process_response(self, val):
+#         try:
+#             res = val.split(';')
+#             if(res[0] != ''):
+#                 return res
+#         except:
+#             pass
+#         return None

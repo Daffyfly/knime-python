@@ -527,41 +527,45 @@ public class Commands {
         return string.getBytes(StandardCharsets.UTF_8);
     }
 
-    private String stringFromBytes(final byte[] bytes) {
-        return new String(bytes);
+    private static String stringFromBytes(final byte[] bytes) {
+        return new String(bytes, StandardCharsets.UTF_8);
     }
 
     private byte[] intToBytes(final int integer) {
         return ByteBuffer.allocate(4).putInt(integer).array();
     }
 
-    private int intFromBytes(final byte[] bytes) {
+    /*private int intFromBytes(final byte[] bytes) {
         return ByteBuffer.wrap(bytes).getInt();
-    }
+    }*/
 
     private void writeString(final String string) throws IOException {
         writeMessageBytes(stringToBytes(string), m_bufferedOutToServer);
     }
 
+    private static String readString(final DataInputStream in, final int size) throws IOException {
+        return stringFromBytes(readBytes(in, size));
+    }
+
     private String readString() throws IOException {
-        return stringFromBytes(readMessageBytes(m_bufferedInFromServer));
+        return stringFromBytes(readBytes());
     }
 
     private void writeInt(final int integer) throws IOException {
         writeMessageBytes(intToBytes(integer), m_bufferedOutToServer);
     }
 
-    private int readInt() throws IOException {
+    /*private int readInt() throws IOException {
         return intFromBytes(readMessageBytes(m_bufferedInFromServer));
-    }
+    }*/
 
     private void writeBytes(final byte[] bytes) throws IOException {
         writeMessageBytes(bytes, m_bufferedOutToServer);
     }
 
-    private byte[] readBytes() throws IOException {
+    /*private byte[] readBytes() throws IOException {
         return readMessageBytes(m_bufferedInFromServer);
-    }
+    }*/
 
     /**
      * Writes the given message size as 32 bit integer into the output stream.
@@ -603,6 +607,18 @@ public class Commands {
         return ByteBuffer.wrap(bytes).getInt();
     }
 
+    private int readInt() throws IOException {
+        final byte[] bytes = new byte[4];
+        m_bufferedInFromServer.readFully(bytes);
+        return ByteBuffer.wrap(bytes).getInt();
+    }
+
+    private static int readInt(final DataInputStream in) throws IOException {
+        final byte[] bytes = new byte[4];
+        in.readFully(bytes);
+        return ByteBuffer.wrap(bytes).getInt();
+    }
+
     /**
      * Reads the next message from the input stream.
      *
@@ -610,10 +626,22 @@ public class Commands {
      * @return The message as byte array
      * @throws IOException If an error occured
      */
-    private static byte[] readMessageBytes(final DataInputStream inputStream) throws IOException {
-        final int size = readSize(inputStream);
+    private byte[] readBytes() throws IOException {
+        int size = readSize(m_bufferedInFromServer);
         final byte[] bytes = new byte[size];
-        //NodeLogger.getLogger("readMessageBytes").warn("Received " + size + " bytes.");
+        m_bufferedInFromServer.readFully(bytes);
+        return bytes;
+    }
+
+    /**
+     * Reads the next message from the input stream.
+     *
+     * @param inputStream The stream to read from
+     * @return The message as byte array
+     * @throws IOException If an error occured
+     */
+    private static byte[] readBytes(final DataInputStream inputStream, final int size) throws IOException {
+        final byte[] bytes = new byte[size];
         inputStream.readFully(bytes);
         return bytes;
     }
@@ -631,7 +659,7 @@ public class Commands {
             new AbstractPythonToJavaMessageHandler(SUCCESS_COMMAND) {
 
                 @Override
-                protected void handle(final PythonToJavaMessage msg) {
+                protected void handle(final CommandMessage msg) {
                     // no op
                 }
             };
@@ -640,7 +668,7 @@ public class Commands {
 
         private final List<PythonToJavaMessageHandler> m_msgHandlers = new ArrayList<>();
 
-        private final Deque<PythonToJavaMessage> m_unansweredRequests = new ArrayDeque<>();
+        private final Deque<CommandMessage> m_unansweredRequests = new ArrayDeque<>();
 
         public CommandsMessages(final Commands commands) {
             m_commands = commands;
@@ -689,20 +717,22 @@ public class Commands {
             }
         }
 
-        private PythonToJavaMessage readMessage() throws IOException {
-            byte[] bytes = readMessageBytes(m_commands.m_bufferedInFromServer);
-            String str = new String(bytes, StandardCharsets.UTF_8);
-            String[] reqCmdVal = str.split(":");
-            return new PythonToJavaMessage(reqCmdVal[1], reqCmdVal[2], reqCmdVal[0].equals("r"));
+        private CommandMessage readMessage() throws IOException {
+            int headerSize = readInt(m_commands.m_bufferedInFromServer);
+            int payloadSize = readInt(m_commands.m_bufferedInFromServer);
+            String header = readString(m_commands.m_bufferedInFromServer, headerSize);
+            byte[] payload = readBytes(m_commands.m_bufferedInFromServer, payloadSize);
+
+            return new CommandMessage(header, payload);
         }
 
         /**
-         * Direct a {@link PythonToJavaMessage} to the appropriate registered {@link PythonToJavaMessageHandler}. If the
+         * Direct a {@link CommandMessage} to the appropriate registered {@link PythonToJavaMessageHandler}. If the
          * message is a request, it has to be answered by calling {@link #answer(JavaToPythonResponse)} exactly once.
          *
          * @param msg a message from the python process
          */
-        private void handleMessage(final PythonToJavaMessage msg) throws IOException {
+        private void handleMessage(final CommandMessage msg) throws IOException {
             boolean handled = false;
             if (msg.isRequest()) {
                 m_unansweredRequests.push(msg);
@@ -728,13 +758,13 @@ public class Commands {
 
         /**
          * Waits for the Python process to signal termination of the most recent command's execution via a
-         * {@link #SUCCESS_COMMAND success message}. Any other {@link PythonToJavaMessage} will be passed through to its
+         * {@link #SUCCESS_COMMAND success message}. Any other {@link CommandMessage} will be passed through to its
          * associated {@link PythonToJavaMessageHandler}.
          *
          * @throws IOException if any exception occurs during reading and handling messages
          */
         private void waitForSuccessMessage() throws IOException {
-            PythonToJavaMessage msg;
+            CommandMessage msg;
             do {
                 msg = readMessage();
                 handleMessage(msg);

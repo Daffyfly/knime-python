@@ -58,6 +58,7 @@ import java.io.StringReader;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -360,9 +361,10 @@ public class PythonKernel implements AutoCloseable {
         messages.registerMessageHandler(new AbstractPythonToJavaMessageHandler("serializer_request") {
 
             @Override
-            protected void handle(final PythonToJavaMessage msg) throws Exception {
+            protected void handle(final CommandMessage msg) throws Exception {
                 for (PythonToKnimeExtension ext : PythonToKnimeExtensions.getExtensions()) {
-                    if (ext.getType().contentEquals(msg.getValue()) || ext.getId().contentEquals(msg.getValue())) {
+                    String payload = new String(msg.getPayload(), StandardCharsets.UTF_8);
+                    if (ext.getType().contentEquals(payload) || ext.getId().contentEquals(payload)) {
                         messages.answer(new DefaultJavaToPythonResponse(msg,
                             ext.getId() + ";" + ext.getType() + ";" + ext.getPythonSerializerPath()));
                         return;
@@ -375,9 +377,9 @@ public class PythonKernel implements AutoCloseable {
         messages.registerMessageHandler(new AbstractPythonToJavaMessageHandler("deserializer_request") {
 
             @Override
-            protected void handle(final PythonToJavaMessage msg) throws Exception {
+            protected void handle(final CommandMessage msg) throws Exception {
                 for (KnimeToPythonExtension ext : KnimeToPythonExtensions.getExtensions()) {
-                    if (ext.getId().contentEquals(msg.getValue())) {
+                    if (ext.getId().contentEquals(new String(msg.getPayload(),StandardCharsets.UTF_8))) {
                         messages.answer(
                             new DefaultJavaToPythonResponse(msg, ext.getId() + ";" + ext.getPythonDeserializerPath()));
                         return;
