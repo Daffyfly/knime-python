@@ -55,11 +55,11 @@ import java.io.IOException;
  * This complements the unidirectional "execute and fetch results" functionality provided by {@link Commands} by means
  * of a bidirectional "message and response" mechanism.
  * <P>
- * {@link PythonToJavaMessage} represents a message that can be sent by Python during execution of a command and is
- * received by Java. A message can be a {@link PythonToJavaMessage#isRequest() request} in which case it requires a
+ * {@link CommandMessage} represents a message that can be sent by Python during execution of a command and is
+ * received by Java. A message can be a {@link CommandMessage#isRequest() request} in which case it requires a
  * {@link JavaToPythonResponse} from Java. On Java side, the message has to be handled by a registered
  * {@link PythonToJavaMessageHandler} and - if it is a request - has to be {@link #answer(JavaToPythonResponse)
- * answered} during {@link PythonToJavaMessageHandler#tryHandle(PythonToJavaMessage) handling}.
+ * answered} during {@link PythonToJavaMessageHandler#tryHandle(CommandMessage) handling}.
  *
  * @author Marcel Wiedenmann, KNIME GmbH, Konstanz, Germany
  * @author Clemens von Schwerin, KNIME GmbH, Konstanz, Germany
@@ -67,10 +67,10 @@ import java.io.IOException;
 public interface Messages {
 
     /**
-     * Register a handler for dealing with a subset of possible {@link PythonToJavaMessage}s from Python. If it is
+     * Register a handler for dealing with a subset of possible {@link CommandMessage}s from Python. If it is
      * already present in the internal list, nothing happens.
      *
-     * @param handler handles {@link PythonToJavaMessage}s having a specific command
+     * @param handler handles {@link CommandMessage}s having a specific command
      */
     void registerMessageHandler(PythonToJavaMessageHandler handler);
 
@@ -83,10 +83,10 @@ public interface Messages {
     void unregisterMessageHandler(final PythonToJavaMessageHandler handler);
 
     /**
-     * Sends a {@link JavaToPythonResponse} to a specific {@link PythonToJavaMessage} to Python.
+     * Sends a {@link JavaToPythonResponse} to a specific {@link CommandMessage} to Python.
      *
      * @param response the response to send to Python
      * @throws IOException if any exception occurs while answering
      */
-    void answer(final JavaToPythonResponse response) throws IOException;
+    void answer(final CommandMessage original, final CommandMessage response) throws IOException;
 }

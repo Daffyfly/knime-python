@@ -64,6 +64,7 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -120,6 +121,8 @@ import org.knime.python2.extensions.serializationlibrary.interfaces.impl.TableSp
 import org.knime.python2.extensions.serializationlibrary.interfaces.impl.TemporaryTableCreator;
 import org.knime.python2.generic.ImageContainer;
 import org.knime.python2.generic.ScriptingNodeUtils;
+import org.knime.python2.kernel.CommandMessage.PayloadDecoder;
+import org.knime.python2.kernel.CommandMessage.PayloadEncoder;
 import org.knime.python2.port.PickledObject;
 import org.w3c.dom.svg.SVGDocument;
 
@@ -257,7 +260,7 @@ public class PythonKernel implements AutoCloseable {
         final ProcessBuilder pb;
         if (!m_kernelOptions.getUsePython3()) {
             //Python2 start without site to set default encoding to utf-8
-            pb = new ProcessBuilder(Activator.getPython2Command(), "-u", "-S", scriptPath, "" + port,
+            pb = new ProcessBuilder(Activator.getPython2Command(), "-u", /*"-S",*/ scriptPath, "" + port,
                 serializerPythonPath);
         } else {
             pb = new ProcessBuilder(Activator.getPython3Command(), "-u", scriptPath, "" + port, serializerPythonPath);
@@ -360,42 +363,68 @@ public class PythonKernel implements AutoCloseable {
         messages.registerMessageHandler(new AbstractPythonToJavaMessageHandler("serializer_request") {
 
             @Override
-            protected void handle(final PythonToJavaMessage msg) throws Exception {
+            protected void handle(final CommandMessage msg) throws Exception {
+                PayloadDecoder dec = new PayloadDecoder(msg.getPayload());
+                String payload = dec.nextString();
                 for (PythonToKnimeExtension ext : PythonToKnimeExtensions.getExtensions()) {
-                    if (ext.getType().contentEquals(msg.getValue()) || ext.getId().contentEquals(msg.getValue())) {
-                        messages.answer(new DefaultJavaToPythonResponse(msg,
-                            ext.getId() + ";" + ext.getType() + ";" + ext.getPythonSerializerPath()));
+
+                    if (ext.getType().contentEquals(payload) || ext.getId().contentEquals(payload)) {
+                        PayloadEncoder enc = new PayloadEncoder();
+                        enc.putString(ext.getId());
+                        enc.putString(ext.getType());
+                        enc.putString(ext.getPythonSerializerPath());
+                        messages.answer(msg, new CommandMessage(msg.getId(), msg.getCommand() + "_response",
+                            enc.get(), false,
+                            Optional.empty()));
                         return;
                     }
                 }
-                messages.answer(new DefaultJavaToPythonResponse(msg, ";;"));
+                PayloadEncoder enc = new PayloadEncoder();
+                enc.putString("");
+                enc.putString("");
+                enc.putString("");
+                messages.answer(msg, new CommandMessage(msg.getId(),
+                    msg.getCommand() + "_response",
+                    enc.get(), false, Optional.empty()));
             }
         });
 
         messages.registerMessageHandler(new AbstractPythonToJavaMessageHandler("deserializer_request") {
 
             @Override
-            protected void handle(final PythonToJavaMessage msg) throws Exception {
+            protected void handle(final CommandMessage msg) throws Exception {
+                PayloadDecoder dec = new PayloadDecoder(msg.getPayload());
+                String payload = dec.nextString();
                 for (KnimeToPythonExtension ext : KnimeToPythonExtensions.getExtensions()) {
-                    if (ext.getId().contentEquals(msg.getValue())) {
-                        messages.answer(
-                            new DefaultJavaToPythonResponse(msg, ext.getId() + ";" + ext.getPythonDeserializerPath()));
+                    if (ext.getId().contentEquals(payload)) {
+                        PayloadEncoder enc = new PayloadEncoder();
+                        enc.putString(ext.getId());
+                        enc.putString(ext.getPythonDeserializerPath());
+                        messages.answer(msg,
+                            new CommandMessage(msg.getId(), msg.getCommand() + "_response",
+                                enc.get(), false, Optional.empty()));
                         return;
                     }
                 }
-                messages.answer(new DefaultJavaToPythonResponse(msg, ";"));
+                PayloadEncoder enc = new PayloadEncoder();
+                enc.putString("");
+                enc.putString("");
+                messages.answer(msg,
+                    new CommandMessage(msg.getId(), msg.getCommand() + "_response",
+                        enc.get(), false, Optional.empty()));
             }
         });
         try {
             // First get PID of Python process
-            m_pid = m_commands.getPid();
-        } catch (EOFException ex) {
+            m_pid = m_commands.getPid().get().intValue();
+            LOGGER.info("PID: " + m_pid);
+        } catch (EOFException | InterruptedException | ExecutionException ex) {
             throw new PythonKernelException("Could not start python kernel. See console and log file for more details.", ex);
         }
         try {
             // Check if python kernel supports autocompletion (this depends
             // on the optional module Jedi)
-            m_hasAutocomplete = m_commands.hasAutoComplete();
+            m_hasAutocomplete = m_commands.hasAutoComplete().get();
         } catch (final Exception e) {
             //
         }
@@ -434,12 +463,20 @@ public class PythonKernel implements AutoCloseable {
         //If an error occurs it is transferred via the socket and available at position 1 of the returned
         //stringlist
         m_errorPrintListener.setAllWarnings(true);
-        final String[] output = m_commands.execute(sourceCode);
-        m_errorPrintListener.setAllWarnings(false);
-        if (output[0].length() > 0) {
-            LOGGER.debug(ScriptingNodeUtils.shortenString(output[0], 1000));
+        String[] output;
+        try {
+            output = m_commands.execute(sourceCode).get();
+            m_errorPrintListener.setAllWarnings(false);
+            if (output[0].length() > 0) {
+                LOGGER.debug(ScriptingNodeUtils.shortenString(output[0], 1000));
+            }
+            return output;
+        } catch (InterruptedException ex) {
+            LOGGER.warn("Python execute interrupted!");
+        } catch (ExecutionException ex) {
+            LOGGER.warn("Python execute failed!");
         }
-        return output;
+        return null;
     }
 
     /**
@@ -500,10 +537,12 @@ public class PythonKernel implements AutoCloseable {
      * @param name The name of the dict
      * @param flowVariables The flow variables to put
      * @throws IOException If an error occurred while communicating with the python kernel
+     * @throws ExecutionException
+     * @throws InterruptedException
      */
-    public void putFlowVariables(final String name, final Collection<FlowVariable> flowVariables) throws IOException {
+    public void putFlowVariables(final String name, final Collection<FlowVariable> flowVariables) throws IOException, InterruptedException, ExecutionException {
         final byte[] bytes = flowVariablesToBytes(flowVariables);
-        m_commands.putFlowVariables(name, bytes);
+        m_commands.putFlowVariables(name, bytes).get();
     }
 
     /**
@@ -602,10 +641,10 @@ public class PythonKernel implements AutoCloseable {
      */
     public Collection<FlowVariable> getFlowVariables(final String name) throws IOException {
         try {
-            final byte[] bytes = m_commands.getFlowVariables(name);
+            final byte[] bytes = m_commands.getFlowVariables(name).get();
             final Collection<FlowVariable> flowVariables = bytesToFlowVariables(bytes);
             return flowVariables;
-        } catch(EOFException ex) {
+        } catch(EOFException | InterruptedException | ExecutionException ex) {
             throw getMostSpecificPythonKernelException(ex);
         }
     }
@@ -635,9 +674,11 @@ public class PythonKernel implements AutoCloseable {
      * @param executionMonitor The monitor that will be updated about progress
      * @param rowLimit The amount of rows that will be transfered
      * @throws IOException If an error occurred while communicating with the python kernel
+     * @throws ExecutionException
+     * @throws InterruptedException
      */
     public void putDataTable(final String name, final BufferedDataTable table, final ExecutionMonitor executionMonitor,
-        final int rowLimit) throws IOException {
+        final int rowLimit) throws IOException, InterruptedException, ExecutionException {
         if (table == null) {
             throw new IOException("Table " + name + " is not available.");
         }
@@ -655,6 +696,7 @@ public class PythonKernel implements AutoCloseable {
         }
         int rowsDone = 0;
         final TableChunker tableChunker = new BufferedDataTableChunker(table.getDataTableSpec(), iterator, rowCount);
+        Future<Boolean> lastChunkCompleted = null;
         for (int i = 0; i < numberChunks; i++) {
             final int rowsInThisIteration = Math.min(numberRows - rowsDone, m_kernelOptions.getChunkSize());
             final ExecutionMonitor chunkProgress =
@@ -666,9 +708,10 @@ public class PythonKernel implements AutoCloseable {
             rowsDone += rowsInThisIteration;
             serializationMonitor.setProgress(rowsDone / (double)numberRows);
             if (i == 0) {
-                m_commands.putTable(name, bytes);
+                lastChunkCompleted = m_commands.putTable(name, bytes);
             } else {
-                m_commands.appendToTable(name, bytes);
+                lastChunkCompleted.get();
+                lastChunkCompleted = m_commands.appendToTable(name, bytes);
             }
             deserializationMonitor.setProgress(rowsDone / (double)numberRows);
             try {
@@ -678,6 +721,8 @@ public class PythonKernel implements AutoCloseable {
             }
         }
         iterator.close();
+        //waitForCompletion
+        lastChunkCompleted.get();
     }
 
     /**
@@ -689,9 +734,11 @@ public class PythonKernel implements AutoCloseable {
      * @param table The table
      * @param executionMonitor The monitor that will be updated about progress
      * @throws IOException If an error occurred while communicating with the python kernel
+     * @throws ExecutionException
+     * @throws InterruptedException
      */
     public void putDataTable(final String name, final BufferedDataTable table, final ExecutionMonitor executionMonitor)
-        throws IOException {
+        throws IOException, InterruptedException, ExecutionException {
         if (table.size() > Integer.MAX_VALUE) {
             throw new IOException("Number of rows exceeds maximum of " + Integer.MAX_VALUE + " rows for input table!");
         }
@@ -707,25 +754,30 @@ public class PythonKernel implements AutoCloseable {
      * @param tableChunker A {@link TableChunker}
      * @param rowsPerChunk The number of rows to send per chunk
      * @throws IOException If an error occurred while communicating with the python kernel
+     * @throws ExecutionException
+     * @throws InterruptedException
      */
-    public void putData(final String name, final TableChunker tableChunker, final int rowsPerChunk) throws IOException {
+    public void putData(final String name, final TableChunker tableChunker, final int rowsPerChunk) throws IOException, InterruptedException, ExecutionException {
         final int numberRows = Math.min(rowsPerChunk, tableChunker.getNumberRemainingRows());
         int numberChunks = (int)Math.ceil(numberRows / (double)m_kernelOptions.getChunkSize());
         if (numberChunks == 0) {
             numberChunks = 1;
         }
         int rowsDone = 0;
+        Future<Boolean> lastChunkCompleted = null;
         for (int i = 0; i < numberChunks; i++) {
             final int rowsInThisIteration = Math.min(numberRows - rowsDone, m_kernelOptions.getChunkSize());
             final TableIterator tableIterator = tableChunker.nextChunk(rowsInThisIteration);
             final byte[] bytes = m_serializer.tableToBytes(tableIterator, m_kernelOptions.getSerializationOptions());
             rowsDone += rowsInThisIteration;
             if (i == 0) {
-                m_commands.putTable(name, bytes);
+                lastChunkCompleted = m_commands.putTable(name, bytes);
             } else {
-                m_commands.appendToTable(name, bytes);
+                lastChunkCompleted.get();
+                lastChunkCompleted = m_commands.appendToTable(name, bytes);
             }
         }
+        lastChunkCompleted.get();
     }
 
     /**
@@ -746,7 +798,7 @@ public class PythonKernel implements AutoCloseable {
         m_errorPrintListener.resetErrorLoggedFlag();
         try {
             addProcessEndAction(pea);
-            final int tableSize = m_commands.getTableSize(name);
+            final int tableSize = m_commands.getTableSize(name).get();
             int numberChunks = (int)Math.ceil(tableSize / (double)m_kernelOptions.getChunkSize());
             if (numberChunks == 0) {
                 numberChunks = 1;
@@ -755,7 +807,7 @@ public class PythonKernel implements AutoCloseable {
             for (int i = 0; i < numberChunks; i++) {
                 final int start = m_kernelOptions.getChunkSize() * i;
                 final int end = Math.min(tableSize, (start + m_kernelOptions.getChunkSize()) - 1);
-                final byte[] bytes = m_commands.getTableChunk(name, start, end);
+                final byte[] bytes = m_commands.getTableChunk(name, start, end).get();
                 serializationMonitor.setProgress((end + 1) / (double)tableSize);
                 if (tableCreator == null) {
                     final TableSpec spec = m_serializer.tableSpecFromBytes(bytes);
@@ -770,7 +822,7 @@ public class PythonKernel implements AutoCloseable {
                 return table;
             }
             throw new PythonKernelException("Invalid serialized table received.");
-        } catch (final EOFException ex) {
+        } catch (final EOFException | InterruptedException | ExecutionException ex) {
             throw getMostSpecificPythonKernelException(ex);
         }
     }
@@ -786,7 +838,7 @@ public class PythonKernel implements AutoCloseable {
     public TableCreator<?> getData(final String name, final TableCreatorFactory tcf) throws IOException {
         ProcessEndAction pea = m_segfaultDuringSerializationAction;
         try {
-            final int tableSize = m_commands.getTableSize(name);
+            final int tableSize = m_commands.getTableSize(name).get();
             int numberChunks = (int)Math.ceil(tableSize / (double)m_kernelOptions.getChunkSize());
             if (numberChunks == 0) {
                 numberChunks = 1;
@@ -795,7 +847,7 @@ public class PythonKernel implements AutoCloseable {
             for (int i = 0; i < numberChunks; i++) {
                 final int start = m_kernelOptions.getChunkSize() * i;
                 final int end = Math.min(tableSize, (start + m_kernelOptions.getChunkSize()) - 1);
-                final byte[] bytes = m_commands.getTableChunk(name, start, end);
+                final byte[] bytes = m_commands.getTableChunk(name, start, end).get();
                 if (tableCreator == null) {
                     final TableSpec spec = m_serializer.tableSpecFromBytes(bytes);
                     tableCreator = tcf.createTableCreator(spec, tableSize);
@@ -804,8 +856,8 @@ public class PythonKernel implements AutoCloseable {
             }
             removeProcessEndAction(pea);
             return tableCreator;
-        } catch(IOException ex) {
-            throw ex;
+        } catch(EOFException | InterruptedException | ExecutionException ex) {
+            throw getMostSpecificPythonKernelException(ex);
         }
     }
 
@@ -820,18 +872,22 @@ public class PythonKernel implements AutoCloseable {
      */
     public ImageContainer getImage(final String name) throws IOException {
         try {
-            final byte[] bytes = m_commands.getImage(name);
-            final String string = new String(bytes, "UTF-8");
-            if (string.startsWith("<?xml")) {
-                try {
-                    return new ImageContainer(stringToSVG(string));
-                } catch (final TranscoderException e) {
-                    throw new IOException(e.getMessage(), e);
+            final byte[] bytes = m_commands.getImage(name).get();
+            if(bytes != null) {
+                final String string = new String(bytes, "UTF-8");
+                if (string.startsWith("<?xml")) {
+                    try {
+                        return new ImageContainer(stringToSVG(string));
+                    } catch (final TranscoderException e) {
+                        throw new IOException(e.getMessage(), e);
+                    }
+                } else {
+                    return new ImageContainer(ImageIO.read(new ByteArrayInputStream(bytes)));
                 }
             } else {
-                return new ImageContainer(ImageIO.read(new ByteArrayInputStream(bytes)));
+                return null;
             }
-        } catch (final EOFException ex) {
+        } catch (final EOFException | InterruptedException | ExecutionException ex) {
             throw getMostSpecificPythonKernelException(ex);
         }
     }
@@ -867,7 +923,7 @@ public class PythonKernel implements AutoCloseable {
      */
     public PickledObject getObject(final String name, final ExecutionContext exec) throws IOException {
         try {
-            final byte[] bytes = m_commands.getObject(name);
+            final byte[] bytes = m_commands.getObject(name).get();
             final TableSpec spec = m_serializer.tableSpecFromBytes(bytes);
             final KeyValueTableCreator tableCreator = new KeyValueTableCreator(spec);
             m_serializer.bytesIntoTable(tableCreator, bytes, m_kernelOptions.getSerializationOptions());
@@ -878,7 +934,7 @@ public class PythonKernel implements AutoCloseable {
             final byte[] objectBytes = row.getCell(bytesIndex).getBytesValue();
             return new PickledObject(objectBytes, row.getCell(typeIndex).getStringValue(),
                 row.getCell(representationIndex).getStringValue());
-        } catch (final EOFException ex) {
+        } catch (final EOFException | InterruptedException | ExecutionException ex) {
             throw getMostSpecificPythonKernelException(ex);
         }
     }
@@ -891,7 +947,11 @@ public class PythonKernel implements AutoCloseable {
      * @throws IOException If an error occurred while communicating with the python kernel
      */
     public void putObject(final String name, final PickledObject object) throws IOException {
-        m_commands.putObject(name, object.getPickledObject());
+        try {
+            m_commands.putObject(name, object.getPickledObject()).get();
+        } catch (InterruptedException | ExecutionException ex) {
+            throw getMostSpecificPythonKernelException(ex);
+        }
     }
 
     /**
@@ -946,7 +1006,7 @@ public class PythonKernel implements AutoCloseable {
      */
     public List<Map<String, String>> listVariables() throws IOException {
         try {
-            final byte[] bytes = m_commands.listVariables();
+            final byte[] bytes = m_commands.listVariables().get();
             final TableSpec spec = m_serializer.tableSpecFromBytes(bytes);
             final TemporaryTableCreator tableCreator = new TemporaryTableCreator(spec);
             m_serializer.bytesIntoTable(tableCreator, bytes, m_kernelOptions.getSerializationOptions());
@@ -962,7 +1022,7 @@ public class PythonKernel implements AutoCloseable {
                 variables.add(map);
             }
             return variables;
-        } catch (final EOFException ex) {
+        } catch (final EOFException | InterruptedException | ExecutionException ex) {
             throw getMostSpecificPythonKernelException(ex);
         }
     }
@@ -989,24 +1049,28 @@ public class PythonKernel implements AutoCloseable {
      */
     public List<Map<String, String>> autoComplete(final String sourceCode, final int line, final int column)
         throws IOException {
-        final List<Map<String, String>> suggestions = new ArrayList<Map<String, String>>();
-        if (m_hasAutocomplete) {
-            final byte[] bytes = m_commands.autoComplete(sourceCode, line, column);
-            final TableSpec spec = m_serializer.tableSpecFromBytes(bytes);
-            final TemporaryTableCreator tableCreator = new TemporaryTableCreator(spec);
-            m_serializer.bytesIntoTable(tableCreator, bytes, m_kernelOptions.getSerializationOptions());
-            final int nameIndex = spec.findColumn("name");
-            final int typeIndex = spec.findColumn("type");
-            final int docIndex = spec.findColumn("doc");
-            for (final Row suggestion : tableCreator.getTable()) {
-                final Map<String, String> map = new HashMap<String, String>();
-                map.put("name", suggestion.getCell(nameIndex).getStringValue());
-                map.put("type", suggestion.getCell(typeIndex).getStringValue());
-                map.put("doc", suggestion.getCell(docIndex).getStringValue());
-                suggestions.add(map);
+        try{
+            final List<Map<String, String>> suggestions = new ArrayList<Map<String, String>>();
+            if (m_hasAutocomplete) {
+                final byte[] bytes = m_commands.autoComplete(sourceCode, line, column).get();
+                final TableSpec spec = m_serializer.tableSpecFromBytes(bytes);
+                final TemporaryTableCreator tableCreator = new TemporaryTableCreator(spec);
+                m_serializer.bytesIntoTable(tableCreator, bytes, m_kernelOptions.getSerializationOptions());
+                final int nameIndex = spec.findColumn("name");
+                final int typeIndex = spec.findColumn("type");
+                final int docIndex = spec.findColumn("doc");
+                for (final Row suggestion : tableCreator.getTable()) {
+                    final Map<String, String> map = new HashMap<String, String>();
+                    map.put("name", suggestion.getCell(nameIndex).getStringValue());
+                    map.put("type", suggestion.getCell(typeIndex).getStringValue());
+                    map.put("doc", suggestion.getCell(docIndex).getStringValue());
+                    suggestions.add(map);
+                }
             }
+            return suggestions;
+        } catch(EOFException | InterruptedException | ExecutionException ex) {
+            throw getMostSpecificPythonKernelException(ex);
         }
-        return suggestions;
     }
 
     /**
@@ -1025,11 +1089,13 @@ public class PythonKernel implements AutoCloseable {
                     try {
                         // Give it some time to finish writing into the stream
                         Thread.sleep(500);
-                        if (!m_commands.tryShutdown()) {
+                        boolean succ = m_commands.tryShutdown();
+                        if(!succ) {
                             LOGGER.debug("Python Kernel could not be shutdown gracefully. Killing process now!");
                         }
                     } catch (final Throwable t) {
                     }
+                    m_commands.stopMessageLoop();
                     try {
                         m_serverSocket.close();
                     } catch (final Throwable t) {
@@ -1056,6 +1122,7 @@ public class PythonKernel implements AutoCloseable {
                             }
                             Process p = pb.start();
                             p.waitFor();
+                            m_process.destroy();
                         } catch (final IOException e) {
                             //
                         } catch (InterruptedException ex) {
@@ -1108,8 +1175,8 @@ public class PythonKernel implements AutoCloseable {
         final TableIterator tableIterator = new KeyValueTableIterator(spec, row);
         final byte[] bytes = m_serializer.tableToBytes(tableIterator, m_kernelOptions.getSerializationOptions());
         try {
-            m_commands.putSql(name, bytes);
-        } catch (final EOFException ex) {
+            m_commands.putSql(name, bytes).get();
+        } catch (final EOFException | InterruptedException | ExecutionException ex) {
             throw getMostSpecificPythonKernelException(ex);
         }
     }
@@ -1123,8 +1190,8 @@ public class PythonKernel implements AutoCloseable {
      */
     public String getSql(final String name) throws IOException {
         try {
-            return m_commands.getSql(name);
-        } catch (final EOFException ex) {
+            return m_commands.getSql(name).get();
+        } catch (final EOFException | InterruptedException | ExecutionException ex) {
             throw getMostSpecificPythonKernelException(ex);
         }
     }
@@ -1249,7 +1316,7 @@ public class PythonKernel implements AutoCloseable {
         }
     }
 
-    private PythonKernelException getMostSpecificPythonKernelException(final EOFException ex) {
+    private PythonKernelException getMostSpecificPythonKernelException(final Exception ex) {
         try {
             if(!m_pythonKernelMonitorResult.isDone()) {
 

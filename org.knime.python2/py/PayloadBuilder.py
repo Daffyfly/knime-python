@@ -42,61 +42,27 @@
 #  may freely choose the license terms applicable to such Node, including
 #  when such Node is propagated with or for interoperation with KNIME.
 # ------------------------------------------------------------------------
+import struct
 
-# Used for defining messages that can be sent to Java
-class PythonToJavaMessage(object):
-    # @param cmd    a string command to trigger a certain Java response action
-    # @param val    the value to process in Java, will be converted to string
-    # @param requestsData true - the message requests data from java, false otherwise
-    def __init__(self, cmd, val, requestsData):
-        self._cmd = cmd
-        self._val = str(val)
-        self._requestsData = requestsData
-    
-    # Get the string representation of this message that can be sent over the
-    # socket connection to Java    
-    def to_string(self):
-        reqstr = "r" if self._requestsData else "s"
-        return reqstr + ":" + self._cmd + ":" + self._val
-    
-    def is_data_request(self):
-        return self._requestsData
-    
-    # Parse the response coming back from Java. Returns None for messages
-    # that are not requests.
-    def process_response(self, val):
-        return None
+# Used for encoding the payload of a CommandMessage.
+# Schema:  variable size types: (length: int32)(object)
+#          fixed size types: (object)
+class PayloadBuilder:
 
-# Used for indicating the successful termination of a command        
-class SuccessMessage(PythonToJavaMessage):
     def __init__(self):
-        PythonToJavaMessage.__init__(self, 'success', '0', False)
+        self.payload = bytes()
 
-# Used for requesting a serializer from java. The value may either be the
-# python type that is to be serialized or the extension id
-class SerializerRequest(PythonToJavaMessage):
-    def __init__(self, val):
-        PythonToJavaMessage.__init__(self, 'serializer_request', val, True)
-    
-    def process_response(self, val):
-        try:
-            res = val.split(';')
-            if(res[0] != ''):
-                return res
-        except:
-            pass
-        return None
+    def add_string(self, string):
+        string_bytes = string.encode('utf-8')
+        string_bytes_size = struct.pack('>L', len(string_bytes))
+        self.payload += string_bytes_size + string_bytes
 
-# Used for requesting a deserializer from java. The value should be the extension id.       
-class DeserializerRequest(PythonToJavaMessage):
-    def __init__(self, val):
-        PythonToJavaMessage.__init__(self, 'deserializer_request', val, True)
-    
-    def process_response(self, val):
-        try:
-            res = val.split(';')
-            if(res[0] != ''):
-                return res
-        except:
-            pass
-        return None
+    def add_integer(self, integer):
+        self.payload += struct.pack('>L', integer)
+
+    def add_bytes(self, data_bytes):
+        data_bytes_size = struct.pack('>L', len(data_bytes))
+        self.payload += data_bytes_size + data_bytes
+
+    def get_payload(self):
+        return self.payload

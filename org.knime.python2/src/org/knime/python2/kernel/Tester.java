@@ -44,69 +44,33 @@
  * ---------------------------------------------------------------------
  *
  * History
- *   Sep 27, 2017 (clemens): created
+ *   Jan 23, 2018 (clemens): created
  */
 package org.knime.python2.kernel;
 
+import org.knime.python2.kernel.CommandMessage.PayloadEncoder;
+
 /**
- * Message class for wrapping command or status strings received from python.
  *
- * @author Clemens von Schwerin, KNIME GmbH, Konstanz, Germany
+ * @author clemens
  */
-public class PythonToJavaMessage {
-
-    private String m_command;
-
-    private String m_value;
-
-    private boolean m_isRequest;
+public class Tester {
 
     /**
-     * Constructor.
-     *
-     * @param command a command used for identifying how to process the message
-     * @param value the message payload
-     * @param isRequest true if the message is a request meaning the python process is waiting for an appropriate
-     *            response false otherwise
+     * @param args
      */
-    public PythonToJavaMessage(final String command, final String value, final boolean isRequest) {
-        m_command = command;
-        m_value = value;
-        m_isRequest = isRequest;
+    public static void main(final String[] args) {
+        String str = "";
+        for(int i=0;i<512;i++) {
+            str += "a";
+        }
+        PayloadEncoder enc = new PayloadEncoder();
+        enc.putString("dasHausVomNikolaus\nblub");
+        //enc.putString(str);
+        System.out.println(new String(enc.get()));
+        /*enc.putString(str);
+        System.out.println(new String(enc.get()));*/
+
     }
 
-    /**
-     * Gets the command.
-     *
-     * @return the command
-     */
-    public String getCommand() {
-        return m_command;
-    }
-
-    /**
-     * Gets the value.
-     *
-     * @return the value
-     */
-    public String getValue() {
-        return m_value;
-    }
-
-    /**
-     * Checks if is the message is a request.
-     *
-     * @return true, if request
-     */
-    public boolean isRequest() {
-        return m_isRequest;
-    }
-
-    /**
-     * @return the value-based representation of this message
-     */
-    @Override
-    public String toString() {
-        return String.join(":", isRequest() ? "r" : "s", m_command, m_value);
-    }
 }
