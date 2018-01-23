@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas.core.dtypes.missing import isnull
+import PayloadBuilder
 
 # ------------------------------------------------------------------------
 #  Copyright by KNIME AG, Zurich, Switzerland
@@ -134,3 +135,13 @@ class DeserializerRequest(CommandMessage):
 #         except:
 #             pass
 #         return None
+
+
+class OutputMessage(CommandMessage):
+
+    def __init__(self, output, error):
+        header = '@id=' + id + '@command=output'
+        payload_builder = PayloadBuilder.PayloadBuilder()
+        payload_builder.add_string(output)
+        payload_builder.add_string(error)
+        CommandMessage.__init__(self, header, payload_builder.get_payload())

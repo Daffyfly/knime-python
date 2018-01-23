@@ -386,12 +386,13 @@ class PythonKernel(Borg):
         self.write_integer(os.getpid())
         try:
             while 1:
-               self.run_command(self.read_string())
+                self.run_command(self.read_message())
         finally:
             self._cleanup()
 
-    def run_command(self, command):
+    def run_command(self, command_message):
         handled = False
+        command = command_message.get_command()
         for handler in self._command_handlers:
             if handler.has_command(command):
                 handler.execute(self)
