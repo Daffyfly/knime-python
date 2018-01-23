@@ -43,7 +43,7 @@
 #  when such Node is propagated with or for interoperation with KNIME.
 # ------------------------------------------------------------------------
 
-from PythonToJavaMessage import *
+from CommandMessage import *
 import types
 import os
 import sys

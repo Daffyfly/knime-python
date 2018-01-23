@@ -44,7 +44,9 @@
 # ------------------------------------------------------------------------
 
 import PayloadHandler
+from CommandMessage import *
 import debug_util
+import os
 
 class CommandMessageHandler:
 
@@ -69,10 +71,11 @@ class ExecuteCommandMessageHandler(CommandMessageHandler):
 
     def execute(self, kernel_):
         source_code = self.get_payload_handler().read_string()
+        id = self.get_command_message().get_id()
         debug_util.debug_msg('executing: ' + source_code + '\n')
         output, error = kernel_.execute(source_code)
         debug_util.debug_msg('executing done!')
-        kernel_.write_message(CommandMessage.OutputMessage(output, error))
+        kernel_.write_message(CommandMessage.OutputMessage(id, output, error))
 
 
 class PutFlowVariablesCommandMessageHandler(CommandMessageHandler):
@@ -372,6 +375,16 @@ class SetCustomModulePathsCommandMessageHandler(CommandMessageHandler):
         path = kernel_.read_string()
         sys.path.append(path)
         kernel_.write_dummy()
+        
+class GetPidCommandMessageHandler(CommandMessageHandler):
+    
+    def __init__(self, command_message):
+        CommandMessageHandler.__init__(self, command_message)
+        
+    def execute(self, kernel_):
+        pid = os.getpid()
+        response = IdMessage(self._command_message.get_id(), pid)
+        kernel_.write_message(response)
 
 
 
@@ -395,8 +408,9 @@ _command_message_handlers = {'execute': ExecuteCommandMessageHandler,
                              'shutdown': ShutdownCommandMessageHandler,
                              'putSql': PutSqlCommandMessageHandler,
                              'getSql': GetSqlCommandMessageHandler,
-                             'setCustomModulePaths': SetCustomModulePathsCommandMessageHandler}
+                             'setCustomModulePaths': SetCustomModulePathsCommandMessageHandler,
+                             'getpid': GetPidCommandMessageHandler}
 
 
 def get_command_message_handler(command_message):
-    return _command_message_handlers[command_message.get_command()]
+    return _command_message_handlers[command_message.get_command()](command_message)

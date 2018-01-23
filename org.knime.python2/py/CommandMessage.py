@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from pandas.core.dtypes.missing import isnull
 import PayloadBuilder
+import struct
 
 # ------------------------------------------------------------------------
 #  Copyright by KNIME AG, Zurich, Switzerland
@@ -66,6 +67,8 @@ class CommandMessage(object):
         self._payload = payload
         self._id = None
         for option in header.split("@"):
+            if not option:
+                continue
             key = option[:option.find("=")]
             if key.lower() == "id":
                 self._id = int(option[option.find("=")+1:])
@@ -91,7 +94,7 @@ class CommandMessage(object):
         return self._payload
     
     def get_header(self):
-        return '@id=' + self._id + ('@' + key + '=' + self._options[key] for key in self._options)
+        return '@id=' + str(self._id) + ''.join(['@' + key + '=' + str(self._options[key]) for key in self._options])
     
     def forbidden_signs_in_options(self):
         for key in self._options:
@@ -139,9 +142,15 @@ class DeserializerRequest(CommandMessage):
 
 class OutputMessage(CommandMessage):
 
-    def __init__(self, output, error):
-        header = '@id=' + id + '@command=output'
+    def __init__(self, id, output, error):
+        header = '@id=' + str(id) + '@command=execute_response'
         payload_builder = PayloadBuilder.PayloadBuilder()
         payload_builder.add_string(output)
         payload_builder.add_string(error)
         CommandMessage.__init__(self, header, payload_builder.get_payload())
+        
+class IdMessage(CommandMessage):
+    
+    def __init__(self, msg_id, pid):
+        header = '@id=' + str(msg_id) + '@command=getpid_response'
+        CommandMessage.__init__(self, header, struct.pack(">L", pid))

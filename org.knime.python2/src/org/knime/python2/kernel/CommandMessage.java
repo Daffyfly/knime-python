@@ -48,6 +48,7 @@
  */
 package org.knime.python2.kernel;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -69,7 +70,7 @@ public class CommandMessage {
 
     public final static String COMMAND_KEY = "command";
 
-    public final static String ID_KEY = "command";
+    public final static String ID_KEY = "id";
 
     public final static String REQUEST_KEY = "request";
 
@@ -83,12 +84,15 @@ public class CommandMessage {
      */
     public CommandMessage(final int msgId, final String command, final byte[] value, final boolean isRequest, final Optional<Map<String,String>> furtherOptions) {
         m_msgId = msgId;
+        m_options = new HashMap<String,String>();
         m_options.put(COMMAND_KEY, command);
         m_payload = value;
         if(isRequest) {
             m_options.put(REQUEST_KEY, "true");
         }
-        m_options.putAll(furtherOptions.get());
+        if(furtherOptions.isPresent()) {
+            m_options.putAll(furtherOptions.get());
+        }
         if(forbiddenSignsInMap()) {
             throw new IllegalArgumentException("Illegal character (@ or =) detected in options!");
         }
@@ -99,7 +103,11 @@ public class CommandMessage {
         String[] options = header.split("@");
         String key, value;
         boolean idSet = false;
+        m_options = new HashMap<String,String>();
         for(String option:options) {
+            if(option.isEmpty()) {
+                continue;
+            }
             key = option.substring(0, option.indexOf("="));
             value = option.substring(option.indexOf("=") + 1);
             if(key.contentEquals(ID_KEY)) {
@@ -118,6 +126,7 @@ public class CommandMessage {
         if(!idSet) {
             throw new IllegalArgumentException("No id in message " + header);
         }
+        m_payload = payload;
     }
 
     private boolean forbiddenSignsInMap() {
@@ -142,6 +151,9 @@ public class CommandMessage {
 
     public boolean isRequest() {
         String isRequest = m_options.get(REQUEST_KEY);
+        if(isRequest == null) {
+            return false;
+        }
         return Boolean.parseBoolean(isRequest) || isRequest.contentEquals("1");
     }
 

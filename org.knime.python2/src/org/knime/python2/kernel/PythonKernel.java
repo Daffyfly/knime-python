@@ -391,6 +391,7 @@ public class PythonKernel implements AutoCloseable {
         try {
             // First get PID of Python process
             m_pid = m_commands.getPid().get().intValue();
+            LOGGER.info("PID: " + m_pid);
         } catch (EOFException | InterruptedException | ExecutionException ex) {
             throw new PythonKernelException("Could not start python kernel. See console and log file for more details.", ex);
         }

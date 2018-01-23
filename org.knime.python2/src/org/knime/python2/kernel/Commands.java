@@ -74,8 +74,6 @@ import java.util.function.Function;
 import org.knime.core.node.NodeLogger;
 import org.knime.core.node.util.CheckUtils;
 
-import com.google.common.primitives.Ints;
-
 /**
  * Used for communicating with the python kernel via commands sent over sockets.
  *
@@ -135,6 +133,7 @@ public class Commands {
                     } catch (IOException ex) {
                         if(m_msgLoopRunning.get()) {
                             LOGGER.warn("Could not read messge, cause: " + ex.getMessage());
+                            break;
                         }
                     }
                 }
@@ -158,9 +157,11 @@ public class Commands {
         byte[] payload = msg.getPayload();
         try {
             m_bufferedOutToServer.writeInt(header.length);
-            m_bufferedOutToServer.writeInt(payload.length);
+            m_bufferedOutToServer.writeInt(payload != null ? payload.length : 0);
             m_bufferedOutToServer.write(header);
-            m_bufferedOutToServer.write(payload);
+            if(payload != null) {
+                m_bufferedOutToServer.write(payload);
+            }
         } catch (IOException ex) {
             LOGGER.error("IOException when sending message, cause: " + ex.getMessage());
         }
@@ -184,7 +185,7 @@ public class Commands {
 
                 @Override
                 public Integer apply(final CommandMessage t) {
-                    return Ints.fromByteArray(t.getPayload());
+                    return new Integer(ByteBuffer.wrap(t.getPayload()).getInt());
                 }});
             sendMessage(msg);
             return result;
@@ -210,8 +211,16 @@ public class Commands {
 
                 @Override
                 public String[] apply(final CommandMessage t) {
-                    String outAndErrStr = new String(t.getPayload(), StandardCharsets.UTF_8);
-                    String[] outAndErr = outAndErrStr.split(";");
+                    ByteBuffer buff = ByteBuffer.wrap(t.getPayload());
+                    String[] outAndErr = new String[2];
+                    int lenOut = buff.getInt();
+                    byte[] dst = new byte[lenOut];
+                    buff.get(dst);
+                    outAndErr[0] = new String(dst, StandardCharsets.UTF_8);
+                    int lenErr = buff.getInt();
+                    dst = new byte[lenErr];
+                    buff.get(dst);
+                    outAndErr[1] = new String(dst, StandardCharsets.UTF_8);
                     return outAndErr;
                 }});
             /*sendMessage(msg);
@@ -875,9 +884,10 @@ public class Commands {
          */
         @Override
         public boolean tryHandle(final CommandMessage msg) throws Exception {
-            if(m_responseMap.containsKey(msg.getId())) {
-                m_responseMap.get(msg.getId()).run(msg);
-                m_responseMap.remove(msg.getId());
+            Integer id = new Integer(msg.getId());
+            if(m_responseMap.containsKey(id)) {
+                m_responseMap.get(id).run(msg);
+                m_responseMap.remove(id);
                 return true;
             }
             return false;

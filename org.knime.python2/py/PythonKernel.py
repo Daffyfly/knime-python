@@ -64,6 +64,7 @@ from DBUtil import *
 from CommandMessage import *
 from TypeExtensionManager import *
 from Borg import Borg
+from CommandMessageHandler import *
 
 # suppress FutureWarnings
 import warnings
@@ -383,7 +384,7 @@ class PythonKernel(Borg):
         self.load_serializer(serializer_path)
         
         # First send PID of this process (so it can reliably be killed later)
-        self.write_integer(os.getpid())
+        #self.write_integer(os.getpid())
         try:
             while 1:
                 self.run_command(self.read_message())
@@ -392,14 +393,16 @@ class PythonKernel(Borg):
 
     def run_command(self, command_message):
         handled = False
-        command = command_message.get_command()
-        for handler in self._command_handlers:
-            if handler.has_command(command):
-                handler.execute(self)
-                handled = True
-                break
-        if not handled:
-            raise LookupError('The command ' + command + ' was received but it cannot be handled by the Python Kernel.')
+#         command = command_message.get_command()
+#         for handler in self._command_handlers:
+#             if handler.has_command(command):
+#                 handler.execute(self)
+#                 handled = True
+#                 break
+        handler = get_command_message_handler(command_message)
+        handler.execute(self)
+        #if not handled:
+         #   raise LookupError('The command ' + command + ' was received but it cannot be handled by the Python Kernel.')
 
     def bytes_from_file(self, path):
         return open(path, 'rb').read()
@@ -829,7 +832,7 @@ class PythonKernel(Borg):
 
     # writes the given data to the output stream
     def write_data(self, data):
-        self.write_size(len(data))
+        #self.write_size(len(data))
         self._connection.sendall(data)
 
     # writes an empty message
@@ -867,10 +870,11 @@ class PythonKernel(Borg):
         return msg.process_response(self.read_data().decode('utf-8'))
 
     def write_message(self, msg):
-        if not issubclass(type(msg), PythonToJavaMessage):
-            raise TypeError("write_message was called with an object of a type not inheriting PythonToJavaMessage!")
+        if not issubclass(type(msg), CommandMessage):
+            raise TypeError("write_message was called with an object of a type not inheriting CommandMessage!")
         header = msg.get_header().encode('utf-8')
         payload = msg.get_payload()
+        #debug_util.breakpoint()
         self.write_size(len(header))
         self.write_size(len(payload))
         self.write_data(header)
@@ -881,7 +885,7 @@ class PythonKernel(Borg):
         payload_size = self.read_size()
         header = self.read_data(header_size).decode('utf-8')
         payload = self.read_data(payload_size)
-        return CommandHandler(header, payload)
+        return CommandMessage(header, payload)
 
     # Get the {@link Simpletype} of a column in the passed dataframe and the serializer_id
     # if available (only interesting for extension types that are transferred as bytes).
@@ -1097,7 +1101,6 @@ class CommandHandler(object):
         
     def execute(self, kernel_):
         raise NotImplementedError("Abstract class CommandHandler does not provide an Implementation for execute().")
-
 
 class ExecuteCommandHandler(CommandHandler):
 
