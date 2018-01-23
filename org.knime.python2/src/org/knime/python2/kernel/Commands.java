@@ -1010,20 +1010,20 @@ public class Commands {
         }
 
         @Override
-        public synchronized void answer(final JavaToPythonResponse response) throws IOException {
+        public synchronized void answer(final CommandMessage original, final CommandMessage response) throws IOException {
             m_commands.m_lock.lock();
             try {
-                if (m_unansweredRequests.peek() != CheckUtils.checkNotNull(response).getOriginalMessage()) {
-                    if (!m_unansweredRequests.contains(response.getOriginalMessage())) {
+                if(original.getId() != response.getId()) {
+                    throw new IllegalArgumentException("Response id and original message id have to be the same.");
+                }
+                if (m_unansweredRequests.peek() != null) {
+                    if (!m_unansweredRequests.contains(original)) {
                         throw new IllegalStateException(
                             "Request message from Python may only be answered once. Response: " + response);
                     }
-                    throw new IllegalStateException(
-                        "Only the most recent request message from Python may be answered. Response: " + response);
+                    m_commands.sendMessage(response);
+                    m_unansweredRequests.removeFirstOccurrence(original);
                 }
-                m_unansweredRequests.pop();
-                m_commands.writeString(response.getOriginalMessage().getCommand() + RESPONSE_SUFFIX);
-                m_commands.writeString(response.getReponse());
             } finally {
                 m_commands.m_lock.unlock();
             }

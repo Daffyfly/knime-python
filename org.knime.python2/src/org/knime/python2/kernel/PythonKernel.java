@@ -65,6 +65,7 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -367,12 +368,16 @@ public class PythonKernel implements AutoCloseable {
                 for (PythonToKnimeExtension ext : PythonToKnimeExtensions.getExtensions()) {
                     String payload = new String(msg.getPayload(), StandardCharsets.UTF_8);
                     if (ext.getType().contentEquals(payload) || ext.getId().contentEquals(payload)) {
-                        messages.answer(new DefaultJavaToPythonResponse(msg,
-                            ext.getId() + ";" + ext.getType() + ";" + ext.getPythonSerializerPath()));
+                        messages.answer(msg, new CommandMessage(msg.getId(), msg.getCommand() + "_response",
+                            (ext.getId() + ";" + ext.getType() + ";" +
+                             ext.getPythonSerializerPath()).getBytes(StandardCharsets.UTF_8), false,
+                            Optional.empty()));
                         return;
                     }
                 }
-                messages.answer(new DefaultJavaToPythonResponse(msg, ";;"));
+                messages.answer(msg, new CommandMessage(msg.getId(),
+                    msg.getCommand() + "_response",
+                    ";;".getBytes(StandardCharsets.UTF_8), false, Optional.empty()));
             }
         });
 
@@ -382,12 +387,17 @@ public class PythonKernel implements AutoCloseable {
             protected void handle(final CommandMessage msg) throws Exception {
                 for (KnimeToPythonExtension ext : KnimeToPythonExtensions.getExtensions()) {
                     if (ext.getId().contentEquals(new String(msg.getPayload(),StandardCharsets.UTF_8))) {
-                        messages.answer(
-                            new DefaultJavaToPythonResponse(msg, ext.getId() + ";" + ext.getPythonDeserializerPath()));
+                        messages.answer(msg,
+                            new CommandMessage(msg.getId(), msg.getCommand() + "_response",
+                                (ext.getId() + ";" + ext.getPythonDeserializerPath()).getBytes(StandardCharsets.UTF_8),
+                                false, Optional.empty()));
                         return;
                     }
                 }
-                messages.answer(new DefaultJavaToPythonResponse(msg, ";"));
+                messages.answer(msg,
+                    new CommandMessage(msg.getId(), msg.getCommand() + "_response",
+                        ";".getBytes(StandardCharsets.UTF_8),
+                        false, Optional.empty()));
             }
         });
         try {

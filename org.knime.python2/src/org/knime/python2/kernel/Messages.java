@@ -88,5 +88,5 @@ public interface Messages {
      * @param response the response to send to Python
      * @throws IOException if any exception occurs while answering
      */
-    void answer(final JavaToPythonResponse response) throws IOException;
+    void answer(final CommandMessage original, final CommandMessage response) throws IOException;
 }
