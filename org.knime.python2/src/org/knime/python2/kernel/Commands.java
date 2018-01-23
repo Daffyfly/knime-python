@@ -73,6 +73,8 @@ import java.util.function.Function;
 
 import org.knime.core.node.NodeLogger;
 import org.knime.core.node.util.CheckUtils;
+import org.knime.python2.kernel.CommandMessage.PayloadDecoder;
+import org.knime.python2.kernel.CommandMessage.PayloadEncoder;
 
 /**
  * Used for communicating with the python kernel via commands sent over sockets.
@@ -195,6 +197,21 @@ public class Commands {
 
     }
 
+
+
+    /*private List<String> decodeLengthAnnotatedStrings(final byte[] bytes) {
+        ByteBuffer buff = ByteBuffer.wrap(bytes);
+        ArrayList<String> ls = new ArrayList<String>();
+        byte[] bstr;
+        while(buff.hasRemaining()) {
+            int len = buff.getInt();
+            bstr = new byte[len];
+            buff.get(bstr);
+            ls.add(stringFromBytes(bstr));
+        }
+        return ls;
+    }*/
+
     /**
      * Execute a source code snippet in the python kernel.
      *
@@ -211,20 +228,14 @@ public class Commands {
 
                 @Override
                 public String[] apply(final CommandMessage t) {
-                    ByteBuffer buff = ByteBuffer.wrap(t.getPayload());
+                    PayloadDecoder dec = new PayloadDecoder(t.getPayload());
                     String[] outAndErr = new String[2];
-                    int lenOut = buff.getInt();
-                    byte[] dst = new byte[lenOut];
-                    buff.get(dst);
-                    outAndErr[0] = new String(dst, StandardCharsets.UTF_8);
-                    int lenErr = buff.getInt();
-                    dst = new byte[lenErr];
-                    buff.get(dst);
-                    outAndErr[1] = new String(dst, StandardCharsets.UTF_8);
+                    outAndErr[0] = dec.nextString();
+                    outAndErr[1] = dec.nextString();
                     return outAndErr;
                 }});
-            /*sendMessage(msg);
-            return result;
+            sendMessage(msg);
+            /*return result;
             writeString("execute");
             writeString(sourceCode);
             m_messages.waitForSuccessMessage();
@@ -237,6 +248,15 @@ public class Commands {
         }
     }
 
+    private Future<Boolean> addSuccessListener(final CommandMessage msg) {
+        return m_commandsHandler.registerResponse(msg, new Function<CommandMessage, Boolean>(){
+
+            @Override
+            public Boolean apply(final CommandMessage t) {
+                return true;
+            }});
+    }
+
     /**
      * Put some serialized flow variables into the python workspace. The flow variables should be serialized using the
      * currently active serialization library.
@@ -245,13 +265,17 @@ public class Commands {
      * @param variables the serialized variables table as bytearray
      * @throws IOException
      */
-    public void putFlowVariables(final String name, final byte[] variables) throws IOException {
+    public Future<Boolean> putFlowVariables(final String name, final byte[] variables) throws IOException {
         m_lock.lock();
         try {
-            writeString("putFlowVariables");
-            writeString(name);
-            writeBytes(variables);
-            readBytes();
+            final int id = m_msgIdCtr++;
+            PayloadEncoder enc = new PayloadEncoder();
+            enc.putString(name);
+            enc.putBytes(variables);
+            CommandMessage msg = new CommandMessage(id, "putFlowVariables", enc.get(), false, Optional.empty());
+            Future<Boolean> result = addSuccessListener(msg);
+            sendMessage(msg);
+            return result;
         } finally {
             m_lock.unlock();
         }
@@ -264,12 +288,24 @@ public class Commands {
      * @return the serialized variables table as bytearray
      * @throws IOException
      */
-    public byte[] getFlowVariables(final String name) throws IOException {
+    public Future<byte[]> getFlowVariables(final String name) throws IOException {
         m_lock.lock();
         try {
-            writeString("getFlowVariables");
+            int id = m_msgIdCtr++;
+            PayloadEncoder enc = new PayloadEncoder();
+            enc.putString(name);
+            CommandMessage msg = new CommandMessage(id, "getFlowVariables", enc.get(), true, Optional.empty());
+            Future<byte[]> result = m_commandsHandler.registerResponse(msg, new Function<CommandMessage, byte[]>(){
+
+                @Override
+                public byte[] apply(final CommandMessage msg) {
+                    return msg.getPayload();
+                }});
+            sendMessage(msg);
+            return result;
+            /*writeString("getFlowVariables");
             writeString(name);
-            return readBytes();
+            return readBytes();*/
         } finally {
             m_lock.unlock();
         }
@@ -283,13 +319,22 @@ public class Commands {
      * @param table the serialized KNIME table as bytearray
      * @throws IOException
      */
-    public void putTable(final String name, final byte[] table) throws IOException {
+    public Future<Boolean> putTable(final String name, final byte[] table) throws IOException {
         m_lock.lock();
         try {
+            final int id = m_msgIdCtr++;
+            PayloadEncoder enc = new PayloadEncoder();
+            enc.putString(name);
+            enc.putBytes(table);
+            CommandMessage msg = new CommandMessage(id, "putTable", enc.get(), false, Optional.empty());
+            Future<Boolean> result = addSuccessListener(msg);
+            sendMessage(msg);
+            return result;
+            /*sendMessage(msg);
             writeString("putTable");
             writeString(name);
             writeBytes(table);
-            m_messages.waitForSuccessMessage();
+            m_messages.waitForSuccessMessage();*/
         } finally {
             m_lock.unlock();
         }
@@ -303,13 +348,21 @@ public class Commands {
      * @param table the serialized table chunk as bytearray
      * @throws IOException
      */
-    public void appendToTable(final String name, final byte[] table) throws IOException {
+    public Future<Boolean> appendToTable(final String name, final byte[] table) throws IOException {
         m_lock.lock();
         try {
-            writeString("appendToTable");
+            final int id = m_msgIdCtr++;
+            PayloadEncoder enc = new PayloadEncoder();
+            enc.putString(name);
+            enc.putBytes(table);
+            CommandMessage msg = new CommandMessage(id, "appendToTable", enc.get(), false, Optional.empty());
+            Future<Boolean> result = addSuccessListener(msg);
+            sendMessage(msg);
+            return result;
+            /*writeString("appendToTable");
             writeString(name);
             writeBytes(table);
-            m_messages.waitForSuccessMessage();
+            m_messages.waitForSuccessMessage();*/
         } finally {
             m_lock.unlock();
         }
@@ -322,12 +375,24 @@ public class Commands {
      * @return the size in bytes
      * @throws IOException
      */
-    public int getTableSize(final String name) throws IOException {
+    public Future<Integer> getTableSize(final String name) throws IOException {
         m_lock.lock();
         try {
-            writeString("getTableSize");
+            int id = m_msgIdCtr++;
+            PayloadEncoder enc = new PayloadEncoder();
+            enc.putString(name);
+            CommandMessage msg = new CommandMessage(id, "getTableSize", enc.get(), true, Optional.empty());
+            Future<Integer> result = m_commandsHandler.registerResponse(msg, new Function<CommandMessage, Integer>(){
+
+                @Override
+                public Integer apply(final CommandMessage msg) {
+                    return ByteBuffer.wrap(msg.getPayload()).getInt();
+                }});
+            sendMessage(msg);
+            return result;
+            /*writeString("getTableSize");
             writeString(name);
-            return readInt();
+            return readInt(); */
         } finally {
             m_lock.unlock();
         }
@@ -340,14 +405,26 @@ public class Commands {
      * @return the serialized table as bytearray
      * @throws IOException
      */
-    public byte[] getTable(final String name) throws IOException {
+    public Future<byte[]> getTable(final String name) throws IOException {
         m_lock.lock();
         try {
-            writeString("getTable");
+            int id = m_msgIdCtr++;
+            PayloadEncoder enc = new PayloadEncoder();
+            enc.putString(name);
+            CommandMessage msg = new CommandMessage(id, "getTable", enc.get(), true, Optional.empty());
+            Future<byte[]> result = m_commandsHandler.registerResponse(msg, new Function<CommandMessage, byte[]>(){
+
+                @Override
+                public byte[] apply(final CommandMessage msg) {
+                    return msg.getPayload();
+                }});
+            sendMessage(msg);
+            return result;
+            /*writeString("getTable");
             writeString(name);
             //success message is sent before table is transmitted
             m_messages.waitForSuccessMessage();
-            return readBytes();
+            return readBytes();*/
         } finally {
             m_lock.unlock();
         }
@@ -362,16 +439,30 @@ public class Commands {
      * @return the serialized table as bytearray
      * @throws IOException
      */
-    public byte[] getTableChunk(final String name, final int start, final int end) throws IOException {
+    public Future<byte[]> getTableChunk(final String name, final int start, final int end) throws IOException {
         m_lock.lock();
         try {
-            writeString("getTableChunk");
+            int id = m_msgIdCtr++;
+            PayloadEncoder enc = new PayloadEncoder();
+            enc.putString(name);
+            enc.putInt(start);
+            enc.putInt(end);
+            CommandMessage msg = new CommandMessage(id, "getTableChunk", enc.get(), true, Optional.empty());
+            Future<byte[]> result = m_commandsHandler.registerResponse(msg, new Function<CommandMessage, byte[]>(){
+
+                @Override
+                public byte[] apply(final CommandMessage msg) {
+                    return msg.getPayload();
+                }});
+            sendMessage(msg);
+            return result;
+            /*writeString("getTableChunk");
             writeString(name);
             writeInt(start);
             writeInt(end);
             //success message is sent before table is transmitted
             m_messages.waitForSuccessMessage();
-            return readBytes();
+            return readBytes(); */
         } finally {
             m_lock.unlock();
         }
@@ -383,11 +474,21 @@ public class Commands {
      * @return the serialized list of variable names
      * @throws IOException
      */
-    public byte[] listVariables() throws IOException {
+    public Future<byte[]> listVariables() throws IOException {
         m_lock.lock();
         try {
-            writeString("listVariables");
-            return readBytes();
+            int id = m_msgIdCtr++;
+            CommandMessage msg = new CommandMessage(id, "listVariables", null, true, Optional.empty());
+            Future<byte[]> result = m_commandsHandler.registerResponse(msg, new Function<CommandMessage, byte[]>(){
+
+                @Override
+                public byte[] apply(final CommandMessage msg) {
+                    return msg.getPayload();
+                }});
+            sendMessage(msg);
+            return result;
+            /*writeString("listVariables");
+            return readBytes();*/
         } finally {
             m_lock.unlock();
         }
@@ -398,11 +499,16 @@ public class Commands {
      *
      * @throws IOException
      */
-    public void reset() throws IOException {
+    public Future<Boolean> reset() throws IOException {
         m_lock.lock();
         try {
-            writeString("reset");
-            readBytes();
+            int id = m_msgIdCtr++;
+            CommandMessage msg = new CommandMessage(id, "reset", null, false, Optional.empty());
+            Future<Boolean> result = addSuccessListener(msg);
+            sendMessage(msg);
+            return result;
+            /*writeString("reset");
+            readBytes();*/
         } finally {
             m_lock.unlock();
         }
@@ -414,11 +520,21 @@ public class Commands {
      * @return autocompletion yes/no
      * @throws IOException
      */
-    public boolean hasAutoComplete() throws IOException {
+    public Future<Boolean> hasAutoComplete() throws IOException {
         m_lock.lock();
         try {
-            writeString("hasAutoComplete");
-            return readInt() > 0;
+            int id = m_msgIdCtr++;
+            CommandMessage msg = new CommandMessage(id, "hasAutoComplete", null, true, Optional.empty());
+            Future<Boolean> result = m_commandsHandler.registerResponse(msg, new Function<CommandMessage, Boolean>(){
+
+                @Override
+                public Boolean apply(final CommandMessage msg) {
+                    return ByteBuffer.wrap(msg.getPayload()).getInt() > 0;
+                }});
+            sendMessage(msg);
+            return result;
+            /*writeString("hasAutoComplete");
+            return readInt() > 0;*/
         } finally {
             m_lock.unlock();
         }
@@ -433,14 +549,28 @@ public class Commands {
      * @return serialized list of autocompletion suggestions
      * @throws IOException
      */
-    public byte[] autoComplete(final String sourceCode, final int line, final int column) throws IOException {
+    public Future<byte[]> autoComplete(final String sourceCode, final int line, final int column) throws IOException {
         m_lock.lock();
         try {
-            writeString("autoComplete");
+            int id = m_msgIdCtr++;
+            PayloadEncoder enc = new PayloadEncoder();
+            enc.putString(sourceCode);
+            enc.putInt(line);
+            enc.putInt(column);
+            CommandMessage msg = new CommandMessage(id, "autoComplete", enc.get(), true, Optional.empty());
+            Future<byte[]> result = m_commandsHandler.registerResponse(msg, new Function<CommandMessage, byte[]>(){
+
+                @Override
+                public byte[] apply(final CommandMessage msg) {
+                    return msg.getPayload();
+                }});
+            sendMessage(msg);
+            return result;
+            /*writeString("autoComplete");
             writeString(sourceCode);
             writeInt(line);
             writeInt(column);
-            return readBytes();
+            return readBytes();*/
         } finally {
             m_lock.unlock();
         }
@@ -453,12 +583,24 @@ public class Commands {
      * @return a serialized image
      * @throws IOException
      */
-    public byte[] getImage(final String name) throws IOException {
+    public Future<byte[]> getImage(final String name) throws IOException {
         m_lock.lock();
         try {
-            writeString("getImage");
+            int id = m_msgIdCtr++;
+            PayloadEncoder enc = new PayloadEncoder();
+            enc.putString(name);
+            CommandMessage msg = new CommandMessage(id, "getImage", enc.get(), true, Optional.empty());
+            Future<byte[]> result = m_commandsHandler.registerResponse(msg, new Function<CommandMessage, byte[]>(){
+
+                @Override
+                public byte[] apply(final CommandMessage msg) {
+                    return msg.getPayload();
+                }});
+            sendMessage(msg);
+            return result;
+            /*writeString("getImage");
             writeString(name);
-            return readBytes();
+            return readBytes();*/
         } finally {
             m_lock.unlock();
         }
@@ -472,12 +614,24 @@ public class Commands {
      * @return a serialized python object
      * @throws IOException
      */
-    public byte[] getObject(final String name) throws IOException {
+    public Future<byte[]> getObject(final String name) throws IOException {
         m_lock.lock();
         try {
-            writeString("getObject");
+            int id = m_msgIdCtr++;
+            PayloadEncoder enc = new PayloadEncoder();
+            enc.putString(name);
+            CommandMessage msg = new CommandMessage(id, "getObject", enc.get(), true, Optional.empty());
+            Future<byte[]> result = m_commandsHandler.registerResponse(msg, new Function<CommandMessage, byte[]>(){
+
+                @Override
+                public byte[] apply(final CommandMessage msg) {
+                    return msg.getPayload();
+                }});
+            sendMessage(msg);
+            return result;
+            /*writeString("getObject");
             writeString(name);
-            return readBytes();
+            return readBytes();*/
         } finally {
             m_lock.unlock();
         }
@@ -491,13 +645,21 @@ public class Commands {
      * @param object a serialized python object
      * @throws IOException
      */
-    public void putObject(final String name, final byte[] object) throws IOException {
+    public Future<Boolean> putObject(final String name, final byte[] object) throws IOException {
         m_lock.lock();
         try {
-            writeString("putObject");
+            int id = m_msgIdCtr++;
+            PayloadEncoder enc = new PayloadEncoder();
+            enc.putString(name);
+            enc.putBytes(object);
+            CommandMessage msg = new CommandMessage(id, "putObject", enc.get(), false, Optional.empty());
+            Future<Boolean> result = addSuccessListener(msg);
+            sendMessage(msg);
+            return result;
+            /*writeString("putObject");
             writeString(name);
             writeBytes(object);
-            readBytes();
+            readBytes(); */
         } finally {
             m_lock.unlock();
         }
@@ -511,14 +673,23 @@ public class Commands {
      * @param path the path to the code file containing the serializer function
      * @throws IOException
      */
-    public void addSerializer(final String id, final String type, final String path) throws IOException {
+    public Future<Boolean> addSerializer(final String sid, final String type, final String path) throws IOException {
         m_lock.lock();
         try {
-            writeString("addSerializer");
+            int id = m_msgIdCtr++;
+            PayloadEncoder enc = new PayloadEncoder();
+            enc.putString(sid);
+            enc.putString(type);
+            enc.putString(path);
+            CommandMessage msg = new CommandMessage(id, "addSerializer", enc.get(), false, Optional.empty());
+            Future<Boolean> result = addSuccessListener(msg);
+            sendMessage(msg);
+            return result;
+            /*writeString("addSerializer");
             writeString(id);
             writeString(type);
             writeString(path);
-            readBytes();
+            readBytes();*/
         } finally {
             m_lock.unlock();
         }
@@ -531,13 +702,21 @@ public class Commands {
      * @param path the path to the code file containing the deserializer function
      * @throws IOException
      */
-    public void addDeserializer(final String id, final String path) throws IOException {
+    public Future<Boolean> addDeserializer(final String sid, final String path) throws IOException {
         m_lock.lock();
         try {
-            writeString("addDeserializer");
+            int id = m_msgIdCtr++;
+            PayloadEncoder enc = new PayloadEncoder();
+            enc.putString(sid);
+            enc.putString(path);
+            CommandMessage msg = new CommandMessage(id, "addDeserializer", enc.get(), false, Optional.empty());
+            Future<Boolean> result = addSuccessListener(msg);
+            sendMessage(msg);
+            return result;
+            /*writeString("addDeserializer");
             writeString(id);
             writeString(path);
-            readBytes();
+            readBytes();*/
         } finally {
             m_lock.unlock();
         }
@@ -551,8 +730,8 @@ public class Commands {
      * @throws IOException
      * @throws InterruptedException
      */
-     public synchronized boolean tryShutdown() throws IOException, InterruptedException {
-        if (m_lock.tryLock(1, TimeUnit.SECONDS)) {
+     public Future<Boolean> tryShutdown() throws IOException, InterruptedException {
+        /*if (m_lock.tryLock(1, TimeUnit.SECONDS)) {
             try {
                 writeString("shutdown");
                 //Give some time to shutdown
@@ -562,7 +741,18 @@ public class Commands {
                 m_lock.unlock();
             }
         }
-        return false;
+        return false;*/
+
+         m_lock.lock();
+         try{
+             int id = m_msgIdCtr++;
+             CommandMessage msg = new CommandMessage(id, "shutdown", null, true, Optional.empty());
+             Future<Boolean> result = addSuccessListener(msg);
+             sendMessage(msg);
+             return result;
+         }finally{
+             m_lock.unlock();
+         }
     }
 
     /**
@@ -573,13 +763,21 @@ public class Commands {
      *            dbidentifier
      * @throws IOException
      */
-    public void putSql(final String name, final byte[] sql) throws IOException {
+    public Future<Boolean> putSql(final String name, final byte[] sql) throws IOException {
         m_lock.lock();
         try {
-            writeString("putSql");
+            int id = m_msgIdCtr++;
+            PayloadEncoder enc = new PayloadEncoder();
+            enc.putString(name);
+            enc.putBytes(sql);
+            CommandMessage msg = new CommandMessage(id, "putSql", enc.get(), false, Optional.empty());
+            Future<Boolean> result = addSuccessListener(msg);
+            sendMessage(msg);
+            return result;
+            /*writeString("putSql");
             writeString(name);
             writeBytes(sql);
-            readBytes();
+            readBytes();*/
         } finally {
             m_lock.unlock();
         }
@@ -592,12 +790,24 @@ public class Commands {
      * @return the SQL query
      * @throws IOException
      */
-    public String getSql(final String name) throws IOException {
+    public Future<String> getSql(final String name) throws IOException {
         m_lock.lock();
         try {
-            writeString("getSql");
+            int id = m_msgIdCtr++;
+            PayloadEncoder enc = new PayloadEncoder();
+            enc.putString(name);
+            CommandMessage msg = new CommandMessage(id, "getSql", enc.get(), true, Optional.empty());
+            Future<String> result = m_commandsHandler.registerResponse(msg, new Function<CommandMessage, String>(){
+
+                @Override
+                public String apply(final CommandMessage msg) {
+                    return new String(msg.getPayload(), StandardCharsets.UTF_8);
+                }});
+            sendMessage(msg);
+            return result;
+            /*writeString("getSql");
             writeString(name);
-            return readString();
+            return readString();*/
         } finally {
             m_lock.unlock();
         }
@@ -612,9 +822,14 @@ public class Commands {
     public void addToPythonPath(final String paths) throws IOException {
         m_lock.lock();
         try {
-            writeString("setCustomModulePaths");
+            int id = m_msgIdCtr++;
+            PayloadEncoder enc = new PayloadEncoder();
+            enc.putString(paths);
+            CommandMessage msg = new CommandMessage(id, "setCustomModulePaths", enc.get(), false, Optional.empty());
+            sendMessage(msg);
+            /*writeString("setCustomModulePaths");
             writeString(paths);
-            readBytes();
+            readBytes(); */
         } finally {
             m_lock.unlock();
         }

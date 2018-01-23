@@ -48,6 +48,8 @@
  */
 package org.knime.python2.kernel;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -180,4 +182,71 @@ public class CommandMessage {
     public String toString() {
         return String.join(":", isRequest() ? "r" : "s", m_command, m_value);
     }*/
+
+    public static class PayloadDecoder {
+
+        private ByteBuffer m_buff;
+
+        public PayloadDecoder(final byte[] bytes) {
+            m_buff = ByteBuffer.wrap(bytes);
+        }
+
+        public String nextString() {
+            int len = m_buff.getInt();
+            byte[] bstr = new byte[len];
+            m_buff.get(bstr);
+            return new String(bstr, StandardCharsets.UTF_8);
+        }
+
+        public byte[] nextBytes() {
+            int len = m_buff.getInt();
+            byte[] bstr = new byte[len];
+            m_buff.get(bstr);
+            return bstr;
+        }
+
+        public int nextInt() {
+            return m_buff.getInt();
+        }
+    }
+
+    public static class PayloadEncoder {
+        private ByteBuffer m_buff;
+
+        public PayloadEncoder() {
+            m_buff = ByteBuffer.allocate(1024);
+        }
+
+        public void makeSpace(final int size) {
+            while(m_buff.remaining() < size) {
+                ByteBuffer tmp = m_buff;
+                m_buff = ByteBuffer.allocate(tmp.capacity() * 2);
+                m_buff.put(tmp);
+                m_buff.position(tmp.position());
+            }
+        }
+
+        public void putString(final String s) {
+            makeSpace(s.length() + 4);
+            m_buff.putInt(s.length());
+            m_buff.put(s.getBytes(StandardCharsets.UTF_8));
+        }
+
+        public void putBytes(final byte[] bytes) {
+            makeSpace(bytes.length + 4);
+            m_buff.putInt(bytes.length);
+            m_buff.put(bytes);
+        }
+
+        public void putInt(final int i) {
+            makeSpace(4);
+            m_buff.putInt(i);
+        }
+
+        public byte[] get() {
+            byte[] payload = new byte[m_buff.position()];
+            m_buff.get(payload);
+            return payload;
+        }
+    }
 }
