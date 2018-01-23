@@ -61,7 +61,7 @@ import collections
 from datetime import datetime
 from pandas import DataFrame, Index
 from DBUtil import *
-from PythonToJavaMessage import *
+from CommandMessage import *
 from TypeExtensionManager import *
 from Borg import Borg
 
@@ -69,9 +69,6 @@ from Borg import Borg
 import warnings
 warnings.filterwarnings(action='ignore', category=FutureWarning)
 
-
-# check if we are running python 2 or python 3
-#_python3 = sys.version_info >= (3, 0)
 
 if _python3:
     from io import StringIO
@@ -115,7 +112,7 @@ if _tslib_available:
 # ******************************************************
 
 import debug_util
-#debug_util.init_debug()
+# debug_util.init_debug()
 debug_util.debug_msg('Python Kernel enabled debugging!')
 
 
@@ -124,8 +121,8 @@ debug_util.debug_msg('Python Kernel enabled debugging!')
 # ******************************************************
 
 
-#Logger class for parallel logging to sys.stdout and a sink, e.g. a StringIO
-#object or a file
+# Logger class for parallel logging to sys.stdout and a sink, e.g. a StringIO
+# object or a file
 class Logger(object):
     def __init__(self, stdstream, sink):
         self.stdstream = stdstream
@@ -145,7 +142,8 @@ class Logger(object):
 
     def isatty(self):
         return False
-        
+
+
 # Wrapper class for data that should be serialized using the serialization library. 
 # Manages the serialization of extension types to bytes before using the 
 # registered serialization library for serializing primitive types.
@@ -160,17 +158,17 @@ class FromPandasTable:
     # @param start_row_number  the corresponding row number to the first row of the
     #                          dataframe. Differs from 0 as soon as a table chunk is
     #                          sent.
-    def __init__(self, data_frame, kernel, start_row_number=0):
+    def __init__(self, data_frame, kernel_, start_row_number=0):
         self._data_frame = data_frame.copy()
         self._data_frame.columns = self._data_frame.columns.astype(str)
         self._column_types = []
         self._column_serializers = {}
         for i, column in enumerate(self._data_frame.columns):
-            column_type, serializer_id = kernel.simpletype_for_column(self._data_frame, column)
+            column_type, serializer_id = kernel_.simpletype_for_column(self._data_frame, column)
             self._column_types.append(column_type)
             if serializer_id is not None:
                 self._column_serializers[column] = serializer_id
-        kernel.serialize_objects_to_bytes(self._data_frame, self._column_serializers)
+        kernel_.serialize_objects_to_bytes(self._data_frame, self._column_serializers)
         self.standardize_default_indices(start_row_number)
         self._row_indices = self._data_frame.index.astype(str)
 
@@ -215,10 +213,10 @@ class FromPandasTable:
     # @param row_index       the row index
     # @return the cell content
     def get_cell(self, column_index, row_index):
-        #value = self._data_frame.iat[row_index, column_index]
-        #if value is None:
+        # value = self._data_frame.iat[row_index, column_index]
+        # if value is None:
         #    return None
-        #else:
+        # else:
         #    return value_to_simpletype_value(value,
         #                                     self._column_types[column_index])
         return self._data_frame.iat[row_index, column_index]
@@ -257,7 +255,7 @@ class ToPandasTable:
     #                            as values. A deserializer_id is the id of the
     #                            java extension point the deserializer is registered at.
     # @param kernel              the PythonKernel
-    def __init__(self, column_names, column_types, column_serializers, kernel):
+    def __init__(self, column_names, column_types, column_serializers, kernel_):
         dtypes = {}
         for i in range(len(column_names)):
             name = column_names[i]
@@ -276,7 +274,7 @@ class ToPandasTable:
         self._column_names = column_names
         self._data_frame = DataFrame(columns=column_names)
         self._column_serializers = column_serializers
-        self.kernel = kernel
+        self.kernel = kernel_
 
     # Append a row to the internal dataframe.
     # example: table.add_row('row1',[1,2])
@@ -305,9 +303,10 @@ class ToPandasTable:
         self.kernel.deserialize_from_bytes(self._data_frame, self._column_serializers)
         return self._data_frame
 
+
 # Enum containing ids for all simple tpyes, i.e. types that can be serialized
 # directly using the serialization library.
-class Simpletype():
+class Simpletype:
     BOOLEAN = 1
     BOOLEAN_LIST = 2
     BOOLEAN_SET = 3
@@ -344,17 +343,17 @@ class PythonKernel(Borg):
         self._type_extension_manager = TypeExtensionManager(self.write_message)
         
         # Define global command handlers
-        self._command_handlers = [ExecuteCommandHandler(),PutFlowVariablesCommandHandler(),
-                             GetFlowVariablesCommandHandler(),PutTableCommandHandler(),
-                             AppendToTableCommandHandler(),GetTableSizeCommandHandler(),
-                             GetTableCommandHandler(),GetTableChunkCommandHandler(),
-                             ListVariablesCommandHandler(),ResetCommandHandler(),
-                             HasAutoCompleteCommandHandler(),AutoCompleteCommandHandler(),
-                             GetImageCommandHandler(),GetObjectCommandHandler(),
-                             PutObjectCommandHandler(),AddSerializerCommandHandler(),
-                             AddDeserializerCommandHandler(),ShutdownCommandHandler(),
-                             PutSqlCommandHandler(),GetSqlCommandHandler(),
-                             SetCustomModulePathsHandler()]
+        self._command_handlers = [ExecuteCommandHandler(), PutFlowVariablesCommandHandler(),
+                                  GetFlowVariablesCommandHandler(), PutTableCommandHandler(),
+                                  AppendToTableCommandHandler(), GetTableSizeCommandHandler(),
+                                  GetTableCommandHandler(), GetTableChunkCommandHandler(),
+                                  ListVariablesCommandHandler(), ResetCommandHandler(),
+                                  HasAutoCompleteCommandHandler(), AutoCompleteCommandHandler(),
+                                  GetImageCommandHandler(), GetObjectCommandHandler(),
+                                  PutObjectCommandHandler(), AddSerializerCommandHandler(),
+                                  AddDeserializerCommandHandler(), ShutdownCommandHandler(),
+                                  PutSqlCommandHandler(), GetSqlCommandHandler(),
+                                  SetCustomModulePathsHandler()]
         
         if sys.getdefaultencoding() != 'utf-8':
             warnings.warn('Your default encoding is not "utf-8". You may experience errors with non ascii characters!')
@@ -363,12 +362,12 @@ class PythonKernel(Borg):
         self._connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._connection.connect(parameters)
         
-    def loadSerializer(self, path):
-         self._serializer = self.load_module_from_path(path)
-         self._serializer.init(Simpletype)
+    def load_serializer(self, path):
+        self._serializer = self.load_module_from_path(path)
+        self._serializer.init(Simpletype)
          
-    #Register a new command handler processing a custom command
-    def registerCommandHandler(self, cmdhandler):
+    # Register a new command handler processing a custom command
+    def register_command_handler(self, cmdhandler):
         if not issubclass(type(cmdhandler), CommandHandler):
             raise TypeError("PythonKernel may only register command handlers inheriting form the CommandHandler class!")
         self._command_handlers.append(cmdhandler)
@@ -381,7 +380,7 @@ class PythonKernel(Borg):
         last_separator = serializer_path.rfind(os.sep)
         serializer_directory_path = serializer_path[0:last_separator + 1]
         sys.path.append(serializer_directory_path)
-        self.loadSerializer(serializer_path)
+        self.load_serializer(serializer_path)
         
         # First send PID of this process (so it can reliably be killed later)
         self.write_integer(os.getpid())
@@ -394,7 +393,7 @@ class PythonKernel(Borg):
     def run_command(self, command):
         handled = False
         for handler in self._command_handlers:
-            if (handler.has_command(command)):
+            if handler.has_command(command):
                 handler.execute(self)
                 handled = True
                 break
@@ -403,7 +402,6 @@ class PythonKernel(Borg):
 
     def bytes_from_file(self, path):
         return open(path, 'rb').read()
-
 
     # Converts data_bytes into a pandas DataFrame using the configured serialization library.
     # For extension types appropriate deserializers are requested from the _type_extension_manager.
@@ -421,18 +419,18 @@ class PythonKernel(Borg):
 
     # Converts data_frame into a bytearray using the configured serialization library.
     # For extension types appropriate serializers are requested from the _type_extension_manager.
-    # @param data_frame        a pandas DataFrame containing the table to serialize
+    # @param data_frame        a pandas DataFrame containing the table to serializeregisterCommandHand
     # @param start_row_number  the corresponding row number to the first row of the
     #                          dataframe. Differs from 0 as soon as a table chunk is
     #                          sent.
     def data_frame_to_bytes(self, data_frame, start_row_number=0):
         table = FromPandasTable(data_frame, self, start_row_number)
-        #Uncomment to profile serialization time
-        #import cProfile
-        #profilepath = os.path.join(os.path.expanduser('~'), 'profileres.txt')
-        #prof = cProfile.Profile()
-        #data_bytes = prof.runcall(_serializer.table_to_bytes, table)
-        #prof.dump_stats(profilepath)
+        # Uncomment to profile serialization time
+        # import cProfile
+        # profilepath = os.path.join(os.path.expanduser('~'), 'profileres.txt')
+        # prof = cProfile.Profile()
+        # data_bytes = prof.runcall(_serializer.table_to_bytes, table)
+        # prof.dump_stats(profilepath)
         data_bytes = self._serializer.table_to_bytes(table)
         return data_bytes
 
@@ -451,7 +449,6 @@ class PythonKernel(Borg):
             else:
                 flow_variables[column] = str(data_frame[column][0])
 
-
     # Convert a python dict to a pandas DataFrame in which each dict key represents
     # a column and each dict value a cell in the respective column. Thus the resulting
     # DataFrame will contain a single row.
@@ -459,8 +456,8 @@ class PythonKernel(Borg):
     def flow_variables_dict_to_data_frame(self, dictionary):
         df = DataFrame()
         for key in dictionary:
-            type = self.get_type_string(dictionary[key])
-            if type.find('int') >= 0 or type.find('float') >= 0:
+            type_ = self.get_type_string(dictionary[key])
+            if type_.find('int') >= 0 or type_.find('float') >= 0:
                 df[key] = [dictionary[key]]
             else:
                 df[key] = [str(dictionary[key])]
@@ -482,20 +479,20 @@ class PythonKernel(Borg):
         output = StringIO()
         error = StringIO()
         
-        #log to stdout and output variable simultaneously
-        backupStdOut = sys.stdout
+        # log to stdout and output variable simultaneously
+        backup_std_out = sys.stdout
         sys.stdout = Logger(sys.stdout, output)
         
         # run execute with the provided source code
         try:
             exec(source_code, self._exec_env, self._exec_env)
         except Exception:
-            backupStdError = sys.stderr
+            backup_std_error = sys.stderr
             sys.stderr = error
             traceback.print_exc()
-            sys.stderr = backupStdError
+            sys.stderr = backup_std_error
         
-        sys.stdout = backupStdOut
+        sys.stdout = backup_std_out
         self.write_message(SuccessMessage())
         return [output.getvalue(), error.getvalue()]
 
@@ -504,14 +501,12 @@ class PythonKernel(Borg):
     def put_variable(self, name, variable):
         self._exec_env[name] = variable
 
-
     # append the given data frame to an existing one, if it does not exist put the data frame into the local environment
     def append_to_table(self, name, data_frame):
         if self._exec_env[name] is None:
             self._exec_env[name] = data_frame
         else:
             self._exec_env[name] = self._exec_env[name].append(data_frame)
-
 
     # get the variable with the given name
     def get_variable(self, name):
@@ -527,7 +522,6 @@ class PythonKernel(Borg):
             return self._exec_env[name]
         else:
             return default
-
 
     # list all currently loaded modules and defined classes, functions and variables
     def list_variables(self):
@@ -566,17 +560,14 @@ class PythonKernel(Borg):
         response.extend(variables)
         return response
 
-
     # reset the current environment
     def reset(self):
         # reset environment by emptying variable definitions
         self._exec_env = {}
 
-
     # returns true if auto complete is available, false otherwise
     def has_auto_complete(self):
         return _jedi_available
-
 
     # returns a list of auto suggestions for the given code at the given cursor position
     def auto_complete(self, source_code, line, column):
@@ -590,7 +581,6 @@ class PythonKernel(Borg):
                 response.append({'name': completion.name, 'type': completion.type, 'doc': completion.docstring()})
         return response
 
-
     # get the type of a column (fails if multiple types are found)
     def column_type(self, data_frame, column_name):
         col_type = None
@@ -603,7 +593,6 @@ class PythonKernel(Borg):
                 else:
                     col_type = type(cell)
         return col_type
-
 
     # get the type of a list column (fails if multiple types are found)
     def list_column_type(self, data_frame, column_name):
@@ -640,7 +629,6 @@ class PythonKernel(Borg):
                         return cell
         return None
 
-
     # checks if the two given types are equivalent based on the equivalence list and the equivalence of numpy types to
     # python types
     def types_are_equivalent(self, type_1, type_2):
@@ -656,21 +644,17 @@ class PythonKernel(Borg):
         else:
             return type_1 is type_2
 
-
     # checks if the given type is a collection type
     def is_collection(self, data_type):
         return data_type is list or data_type is set or data_type is dict or data_type is tuple
-
 
     # checks if the given type is a numpy type
     def is_numpy_type(self, data_type):
         return data_type.__module__ == numpy.__name__
 
-
     # checks if the given value is None, NaN or NaT
     def is_missing(self, value):
         return value is None or self.is_nat(value) or self.is_nan(value)
-
 
     # checks if the given value is NaT
     def is_nat(self, value):
@@ -679,14 +663,12 @@ class PythonKernel(Borg):
         else:
             return False
 
-
     # checks if the given value is NaN
     def is_nan(self, value):
         try:
             return math.isnan(value)
         except BaseException:
             return False
-                
 
     # gets the name of an object's type.
     # NOTE: the name of an object's type is not the fully qualified one returned by the type()
@@ -713,7 +695,7 @@ class PythonKernel(Borg):
             raise ImportError('Error while loading python module ' + module_name + '\nCause: ' + str(error))
         return loaded_module
     
-    #Convert data_object to a string representation
+    # Convert data_object to a string representation
     def object_to_string(self, data_object):
         if _python3:
             try:
@@ -728,12 +710,10 @@ class PythonKernel(Borg):
             except Exception:
                 return ''
 
-            
-
-
     # Serialize all cells in the provided data frame to a bytes representation (inplace).
     # @param data_frame          a pandas.DataFrame containing columns to serialize
-    # @param column_serializers  dict containing column names present in data_frame as keys and serializer_ids as values.
+    # @param column_serializers  dict containing column names present in data_frame as keys and serializer_ids as
+    #                            values.
     #                            A serializer_id should be the id of the java extension point on which the serializer is
     #                            registered. Each column identified by the dict keys is serialized using the serializer
     #                            provided by the TypeExtensionManager for the given serializer_id.
@@ -748,7 +728,7 @@ class PythonKernel(Borg):
                     lastp = -1
                     if (i * 100/len(data_frame)) % 5 == 0 and int(i * 100/len(data_frame)) != lastp:
                         debug_util.debug_msg(str(i * 100/len(data_frame)) + ' percent done (serialize)')
-                        lastp = int(i * 100/len(data_frame))
+                        # lastp = int(i * 100/len(data_frame))
                 # Using bracket acessor is necessary here for ensuring that there are
                 # no unwanted type conversions
                 value = data_frame[column][data_frame.index[i]] 
@@ -760,7 +740,7 @@ class PythonKernel(Borg):
                                 new_list.append(None)
                             else:
                                 new_list.append(serializer.serialize(inner_value))
-                        data_frame.iat[i,col_idx] = new_list
+                        data_frame.iat[i, col_idx] = new_list
                     elif isinstance(value, set):
                         new_set = set()
                         for inner_value in value:
@@ -768,19 +748,21 @@ class PythonKernel(Borg):
                                 new_set.add(None)
                             else:
                                 new_set.add(serializer.serialize(inner_value))
-                        data_frame.iat[i,col_idx] = new_set
+                        data_frame.iat[i, col_idx] = new_set
                     else:
-                        data_frame.iat[i,col_idx] = serializer.serialize(value)
-
+                        data_frame.iat[i, col_idx] = serializer.serialize(value)
 
     # Deserialize all cells in the provided data frame from a bytes representation (inplace).
     # @param data_frame          a pandas.DataFrame containing columns to deserialize
-    # @param column_serializers  dict containing column names present in data_frame as keys and deserializer_ids as values.
-    #                            A deserializer_id should be the id of the java extension point on which the deserializer is
-    #                            registered. Each column identified by the dict keys is deserialized using the deserializer
+    # @param column_serializers  dict containing column names present in data_frame as keys and deserializer_ids as
+    #                            values.
+    #                            A deserializer_id should be the id of the java extension point on which the
+    #                            deserializer is
+    #                            registered. Each column identified by the dict keys is deserialized using the
+    #                            deserializer
     #                            provided by the TypeExtensionManager for the given deserializer_id.
     def deserialize_from_bytes(self, data_frame, column_serializers):
-        #print('Data frame: ' + str(data_frame) + '\nserializers: ' + str(column_serializers) + '\n')
+        # print('Data frame: ' + str(data_frame) + '\nserializers: ' + str(column_serializers) + '\n')
         for column in column_serializers:
             deserializer = self._type_extension_manager.get_deserializer_by_id(column_serializers[column])
             for i in range(len(data_frame)):
@@ -788,7 +770,7 @@ class PythonKernel(Borg):
                     lastp = -1
                     if (i * 100/len(data_frame)) % 5 == 0 and int(i * 100/len(data_frame)) != lastp:
                         debug_util.debug_msg(str(i * 100/len(data_frame)) + ' percent done (deserialize)')
-                        lastp = int(i * 100/len(data_frame))
+                        # lastp = int(i * 100/len(data_frame))
                 col_idx = data_frame.columns.get_loc(column)
                 # Using bracket acessor is necessary here for ensuring that there are
                 # no unwanted type conversions
@@ -805,7 +787,7 @@ class PythonKernel(Borg):
                                 new_list.append(deserializer.deserialize(inner_value))
                             else:
                                 new_list.append(None)
-                        data_frame.iat[i,col_idx] = new_list
+                        data_frame.iat[i, col_idx] = new_list
                     elif isinstance(value, set):
                         new_set = set()
                         for inner_value in value:
@@ -815,12 +797,11 @@ class PythonKernel(Borg):
                                 new_set.add(deserializer.deserialize(inner_value))
                             else:
                                 new_set.add(None)
-                        data_frame.iat[i,col_idx] = new_set
+                        data_frame.iat[i, col_idx] = new_set
                     else:
-                        data_frame.iat[i,col_idx] = deserializer.deserialize(value)
+                        data_frame.iat[i, col_idx] = deserializer.deserialize(value)
                 else:
-                    data_frame.iat[i,col_idx] = None
-
+                    data_frame.iat[i, col_idx] = None
 
     # reads 4 bytes from the input stream and interprets them as size
     def read_size(self):
@@ -829,42 +810,36 @@ class PythonKernel(Borg):
             data.extend(self._connection.recv(4))
         return struct.unpack('>L', data)[0]
 
-
     # read the next data from the input stream
-    def read_data(self):
-        size = self.read_size()
+    def read_data(self, size=None):
+        if size is None:
+            size = self.read_size()
         data = bytearray()
         while len(data) < size:
             data.extend(self._connection.recv(size))
         return data
-
 
     # writes the given size as 4 byte integer to the output stream
     def write_size(self, size):
         writer = self._connection.makefile('wb', 4)
         writer.write(struct.pack('>L', size))
         writer.flush()
-        #_connection.sendall(struct.pack('>L', size))
-
+        # _connection.sendall(struct.pack('>L', size))
 
     # writes the given data to the output stream
     def write_data(self, data):
         self.write_size(len(data))
         self._connection.sendall(data)
 
-
     # writes an empty message
     def write_dummy(self):
         self.write_size(0)
 
-
     def read_integer(self):
         return struct.unpack('>L', self.read_data())[0]
 
-
     def write_integer(self, integer):
         self.write_data(struct.pack('>L', integer))
-
 
     def read_string(self):
         try:
@@ -874,18 +849,14 @@ class PythonKernel(Borg):
         except:
             raise
 
-
     def write_string(self, string):
         self.write_data(bytearray(string, 'utf-8'))
-
 
     def read_bytearray(self):
         return bytearray(self.read_data())
 
-
     def write_bytearray(self, data_bytes):
         self.write_data(data_bytes)
-
 
     def read_response(self, msg):
         command_or_reponse = self.read_string()
@@ -894,8 +865,6 @@ class PythonKernel(Borg):
             command_or_reponse = self.read_string()
         return msg.process_response(self.read_data().decode('utf-8'))
 
-
-    # Write a PythonToJavaMessage object
     def write_message(self, msg):
         if not issubclass(type(msg), PythonToJavaMessage):
             raise TypeError("write_message was called with an object of a type not inheriting PythonToJavaMessage!")
@@ -905,9 +874,13 @@ class PythonKernel(Borg):
         self.write_size(len(payload))
         self.write_data(header)
         self.write_data(payload)
-        #if msg.is_data_request():
-        #    return self.read_response(msg)
 
+    def read_message(self):
+        header_size = self.read_size()
+        payload_size = self.read_size()
+        header = self.read_data(header_size).decode('utf-8')
+        payload = self.read_data(payload_size)
+        return CommandHandler(header, payload)
 
     # Get the {@link Simpletype} of a column in the passed dataframe and the serializer_id
     # if available (only interesting for extension types that are transferred as bytes).
@@ -997,7 +970,7 @@ class PythonKernel(Borg):
                 elif self.types_are_equivalent(col_type, str):
                     simple_type = Simpletype.STRING
                 elif self.types_are_equivalent(col_type, bytes) or self.types_are_equivalent(col_type, bytearray):
-                    #NOTE: raw bytestring requested here -> no serializer
+                    # NOTE: raw bytestring requested here -> no serializer
                     simple_type = Simpletype.BYTES
                 else:
                     type_string = self.get_type_string(self.first_valid_object(data_frame, column_name))
@@ -1007,7 +980,8 @@ class PythonKernel(Borg):
                                          + str(data_frame[column_name].dtype) 
                                          + '" although the first nonnull element has type "' 
                                          + type_string + '". Mixed types in the column cannot be ruled out.'
-                                         + ' You may convert the column type manually using the pandas.Series.astype method.')
+                                         + ' You may convert the column type manually using the pandas.Series.astype'
+                                           ' method.')
                     simple_type = Simpletype.BYTES
         return simple_type, column_serializer
 
@@ -1111,165 +1085,197 @@ class PythonKernel(Borg):
                     value_set.add(bytes(inner_value))
             return value_set
 
+
 class CommandHandler(object):
+
     def __init__(self, command):
         self._command = command
         
     def has_command(self, command):
         return self._command == command
         
-    def execute(self, kernel):
+    def execute(self, kernel_):
         raise NotImplementedError("Abstract class CommandHandler does not provide an Implementation for execute().")
-    
+
+
 class ExecuteCommandHandler(CommandHandler):
+
     def __init__(self):
-        self._command = 'execute'
+        CommandHandler.__init__(self, 'execute')
         
-    def execute(self, kernel):
-        source_code = kernel.read_string()
+    def execute(self, kernel_):
+        source_code = kernel_.read_string()
         debug_util.debug_msg('executing: ' + source_code + '\n')
-        output, error = kernel.execute(source_code)
+        output, error = kernel_.execute(source_code)
         debug_util.debug_msg('executing done!')
-        kernel.write_string(output)
-        kernel.write_string(error)
-        
+        kernel_.write_string(output)
+        kernel_.write_string(error)
+
+
 class PutFlowVariablesCommandHandler(CommandHandler):
+
     def __init__(self):
-        self._command = 'putFlowVariables'
+        CommandHandler.__init__(self, 'putFlowVariables')
         
-    def execute(self, kernel):
+    def execute(self, kernel_):
         flow_variables = collections.OrderedDict()
-        name = kernel.read_string()
-        data_bytes = kernel.read_bytearray()
-        data_frame = kernel.bytes_to_data_frame(data_bytes)
-        kernel.fill_flow_variables_from_data_frame(flow_variables, data_frame)
-        kernel.put_variable(name, flow_variables)
-        kernel.write_dummy()
-        
+        name = kernel_.read_string()
+        data_bytes = kernel_.read_bytearray()
+        data_frame = kernel_.bytes_to_data_frame(data_bytes)
+        kernel_.fill_flow_variables_from_data_frame(flow_variables, data_frame)
+        kernel_.put_variable(name, flow_variables)
+        kernel_.write_dummy()
+
+
 class GetFlowVariablesCommandHandler(CommandHandler):
+
     def __init__(self):
-        self._command = 'getFlowVariables'
+        CommandHandler.__init__(self, 'getFlowVariables')
         
-    def execute(self, kernel):
-        name = kernel.read_string()
-        current_variables = kernel.get_variable(name)
-        data_frame = kernel.flow_variables_dict_to_data_frame(current_variables)
-        data_bytes = kernel.data_frame_to_bytes(data_frame)
-        kernel.write_bytearray(data_bytes)
-        
+    def execute(self, kernel_):
+        name = kernel_.read_string()
+        current_variables = kernel_.get_variable(name)
+        data_frame = kernel_.flow_variables_dict_to_data_frame(current_variables)
+        data_bytes = kernel_.data_frame_to_bytes(data_frame)
+        kernel_.write_bytearray(data_bytes)
+
+
 class PutTableCommandHandler(CommandHandler):
+
     def __init__(self):
-        self._command = 'putTable'
+        CommandHandler.__init__(self, 'putTable')
         
-    def execute(self, kernel):
-        name = kernel.read_string()
-        data_bytes = kernel.read_bytearray()
-        data_frame = kernel.bytes_to_data_frame(data_bytes)
-        kernel.put_variable(name, data_frame)
-        kernel.write_message(SuccessMessage())
-        
+    def execute(self, kernel_):
+        name = kernel_.read_string()
+        data_bytes = kernel_.read_bytearray()
+        data_frame = kernel_.bytes_to_data_frame(data_bytes)
+        kernel_.put_variable(name, data_frame)
+        kernel_.write_message(SuccessMessage())
+
+
 class AppendToTableCommandHandler(CommandHandler):
+
     def __init__(self):
-        self._command = 'appendToTable'
+        CommandHandler.__init__(self, 'appendToTable')
         
-    def execute(self, kernel):
-        name = kernel.read_string()
-        data_bytes = kernel.read_bytearray()
-        data_frame = kernel.bytes_to_data_frame(data_bytes)
-        kernel.append_to_table(name, data_frame)
-        kernel.write_message(SuccessMessage())
-        
+    def execute(self, kernel_):
+        name = kernel_.read_string()
+        data_bytes = kernel_.read_bytearray()
+        data_frame = kernel_.bytes_to_data_frame(data_bytes)
+        kernel_.append_to_table(name, data_frame)
+        kernel_.write_message(SuccessMessage())
+
+
 class GetTableSizeCommandHandler(CommandHandler):
+
     def __init__(self):
-        self._command = 'getTableSize'
+        CommandHandler.__init__(self, 'getTableSize')
         
-    def execute(self, kernel):
-        name = kernel.read_string()
-        data_frame = kernel.get_variable(name)
-        kernel.write_integer(len(data_frame))
-        
+    def execute(self, kernel_):
+        name = kernel_.read_string()
+        data_frame = kernel_.get_variable(name)
+        kernel_.write_integer(len(data_frame))
+
+
 class GetTableCommandHandler(CommandHandler):
+
     def __init__(self):
-        self._command = 'getTable'
+        CommandHandler.__init__(self, 'getTable')
         
-    def execute(self, kernel):
+    def execute(self, kernel_):
         debug_util.debug_msg('getTable\n')
-        name = kernel.read_string()
-        data_frame = kernel.get_variable(name)
+        name = kernel_.read_string()
+        data_frame = kernel_.get_variable(name)
         import pandas
         if type(data_frame) != pandas.core.frame.DataFrame:
-            raise TypeError("Expected pandas.DataFrame, got: " + str(type(data_frame)) + "\nPlease make sure your output_table is a pandas.DataFrame.")
-        data_bytes = kernel.data_frame_to_bytes(data_frame)
-        kernel.write_message(SuccessMessage())
-        kernel.write_bytearray(data_bytes)
-        
+            raise TypeError("Expected pandas.DataFrame, got: " + str(type(data_frame)) + "\nPlease make sure your"
+                                                                                         " output_table is"
+                                                                                         " a pandas.DataFrame.")
+        data_bytes = kernel_.data_frame_to_bytes(data_frame)
+        kernel_.write_message(SuccessMessage())
+        kernel_.write_bytearray(data_bytes)
+
+
 class GetTableChunkCommandHandler(CommandHandler):
+
     def __init__(self):
-        self._command = 'getTableChunk'
+        CommandHandler.__init__(self, 'getTableChunk')
         
-    def execute(self, kernel):
+    def execute(self, kernel_):
         debug_util.debug_msg('getTableChunk\n')
-        name = kernel.read_string()
-        start = kernel.read_integer()
-        end = kernel.read_integer()
-        data_frame = kernel.get_variable(name)
+        name = kernel_.read_string()
+        start = kernel_.read_integer()
+        end = kernel_.read_integer()
+        data_frame = kernel_.get_variable(name)
         import pandas
         if type(data_frame) != pandas.core.frame.DataFrame:
-            raise TypeError("Expected pandas.DataFrame, got: " + str(type(data_frame)) + "\nPlease make sure your output_table is a pandas.DataFrame.")
+            raise TypeError("Expected pandas.DataFrame, got: " + str(type(data_frame)) + "\nPlease make sure your"
+                                                                                         " output_table is a"
+                                                                                         " pandas.DataFrame.")
         data_frame_chunk = data_frame[start:end+1]
-        data_bytes = kernel.data_frame_to_bytes(data_frame_chunk, start)
-        kernel.write_message(SuccessMessage())
-        kernel.write_bytearray(data_bytes)
-        
+        data_bytes = kernel_.data_frame_to_bytes(data_frame_chunk, start)
+        kernel_.write_message(SuccessMessage())
+        kernel_.write_bytearray(data_bytes)
+
+
 class ListVariablesCommandHandler(CommandHandler):
+
     def __init__(self):
-        self._command = 'listVariables'
+        CommandHandler.__init__(self, 'listVariables')
         
-    def execute(self, kernel):
-        variables = kernel.list_variables()
+    def execute(self, kernel_):
+        variables = kernel_.list_variables()
         data_frame = DataFrame(variables)
-        data_bytes = kernel.data_frame_to_bytes(data_frame)
-        kernel.write_bytearray(data_bytes)
-        
+        data_bytes = kernel_.data_frame_to_bytes(data_frame)
+        kernel_.write_bytearray(data_bytes)
+
+
 class ResetCommandHandler(CommandHandler):
+
     def __init__(self):
-        self._command = 'reset'
+        CommandHandler.__init__(self, 'reset')
         
-    def execute(self, kernel):
-        kernel.reset()
-        kernel.write_dummy()
-        
+    def execute(self, kernel_):
+        kernel_.reset()
+        kernel_.write_dummy()
+
+
 class HasAutoCompleteCommandHandler(CommandHandler):
+
     def __init__(self):
-        self._command = 'hasAutoComplete'
+        CommandHandler.__init__(self, 'hasAutoComplete')
         
-    def execute(self, kernel):
-        if kernel.has_auto_complete():
+    def execute(self, kernel_):
+        if kernel_.has_auto_complete():
             value = 1
         else:
             value = 0
-        kernel.write_integer(value)
-        
+        kernel_.write_integer(value)
+
+
 class AutoCompleteCommandHandler(CommandHandler):
+
     def __init__(self):
-        self._command = 'autoComplete'
+        CommandHandler.__init__(self, 'autoComplete')
         
-    def execute(self, kernel):
-        source_code = kernel.read_string()
-        line = kernel.read_integer()
-        column = kernel.read_integer()
-        suggestions = kernel.auto_complete(source_code, line, column)
+    def execute(self, kernel_):
+        source_code = kernel_.read_string()
+        line = kernel_.read_integer()
+        column = kernel_.read_integer()
+        suggestions = kernel_.auto_complete(source_code, line, column)
         data_frame = DataFrame(suggestions)
-        data_bytes = kernel.data_frame_to_bytes(data_frame)
-        kernel.write_bytearray(data_bytes)
-        
+        data_bytes = kernel_.data_frame_to_bytes(data_frame)
+        kernel_.write_bytearray(data_bytes)
+
+
 class GetImageCommandHandler(CommandHandler):
+
     def __init__(self):
-        self._command = 'getImage'
+        CommandHandler.__init__(self, 'getImage')
         
-    def execute(self, kernel):
-        name = kernel.read_string()
-        image = kernel.get_variable_or_default(name, None)
+    def execute(self, kernel_):
+        name = kernel_.read_string()
+        image = kernel_.get_variable_or_default(name, None)
         if _python3:
             if type(image) is bytes:
                 data_bytes = image
@@ -1280,102 +1286,119 @@ class GetImageCommandHandler(CommandHandler):
                 data_bytes = image
             else:
                 data_bytes = ''
-        kernel.write_bytearray(data_bytes)
-        
+        kernel_.write_bytearray(data_bytes)
+
+
 class GetObjectCommandHandler(CommandHandler):
+
     def __init__(self):
-        self._command = 'getObject'
+        CommandHandler.__init__(self, 'getObject')
         
-    def execute(self, kernel):
-        name = kernel.read_string()
-        data_object = kernel.get_variable(name)
+    def execute(self, kernel_):
+        name = kernel_.read_string()
+        data_object = kernel_.get_variable(name)
         o_bytes = bytearray(pickle.dumps(data_object))
         o_type = type(data_object).__name__
-        o_representation = kernel.object_to_string(data_object)
+        o_representation = kernel_.object_to_string(data_object)
         data_frame = DataFrame([{'bytes': o_bytes, 'type': o_type, 'representation': o_representation}])
-        data_bytes = kernel.data_frame_to_bytes(data_frame)
-        kernel.write_bytearray(data_bytes)
-        
+        data_bytes = kernel_.data_frame_to_bytes(data_frame)
+        kernel_.write_bytearray(data_bytes)
+
+
 class PutObjectCommandHandler(CommandHandler):
+
     def __init__(self):
-        self._command = 'putObject'
+        CommandHandler.__init__(self, 'putObject')
         
-    def execute(self, kernel):
-        name = kernel.read_string()
-        data_bytes = kernel.read_bytearray()
+    def execute(self, kernel_):
+        name = kernel_.read_string()
+        data_bytes = kernel_.read_bytearray()
         data_object = pickle.loads(data_bytes)
-        kernel.put_variable(name, data_object)
-        kernel.write_dummy()
-        
+        kernel_.put_variable(name, data_object)
+        kernel_.write_dummy()
+
+
 class AddSerializerCommandHandler(CommandHandler):
+
     def __init__(self):
-        self._command = 'addSerializer'
+        CommandHandler.__init__(self, 'addSerializer')
         
-    def execute(self, kernel):
-        s_id = kernel.read_string()
-        s_type = kernel.read_string()
-        s_path = kernel.read_string()
-        kernel._type_extension_manager.add_serializer(s_id, s_type, s_path)
-        kernel.write_dummy()
-        
+    def execute(self, kernel_):
+        s_id = kernel_.read_string()
+        s_type = kernel_.read_string()
+        s_path = kernel_.read_string()
+        kernel_._type_extension_manager.add_serializer(s_id, s_type, s_path)
+        kernel_.write_dummy()
+
+
 class AddDeserializerCommandHandler(CommandHandler):
+
     def __init__(self):
-        self._command = 'addDeserializer'
+        CommandHandler.__init__(self, 'addDeserializer')
         
-    def execute(self, kernel):
-        d_id = kernel.read_string()
-        d_path = kernel.read_string()
-        kernel._type_extension_manager.add_deserializer(d_id, d_path)
-        kernel.write_dummy()
-        
+    def execute(self, kernel_):
+        d_id = kernel_.read_string()
+        d_path = kernel_.read_string()
+        kernel_._type_extension_manager.add_deserializer(d_id, d_path)
+        kernel_.write_dummy()
+
+
 class ShutdownCommandHandler(CommandHandler):
+
     def __init__(self):
-        self._command = 'shutdown'
+        CommandHandler.__init__(self, 'shutdown')
         
-    def execute(self, kernel):
-        kernel._cleanup()
+    def execute(self, kernel_):
+        kernel_._cleanup()
         exit()
-        
+
+
 class PutSqlCommandHandler(CommandHandler):
+
     def __init__(self):
-        self._command = 'putSql'
+        CommandHandler.__init__(self, 'putSql')
         
-    def execute(self, kernel):
-        name = kernel.read_string()
-        data_bytes = kernel.read_bytearray()
-        data_frame = kernel.bytes_to_data_frame(data_bytes)
+    def execute(self, kernel_):
+        name = kernel_.read_string()
+        data_bytes = kernel_.read_bytearray()
+        data_frame = kernel_.bytes_to_data_frame(data_bytes)
         db_util = DBUtil(data_frame)
-        kernel._exec_env[name] = db_util
-        kernel._cleanup_object_names.append(name)
-        kernel.write_dummy()
-        
+        kernel_._exec_env[name] = db_util
+        kernel_._cleanup_object_names.append(name)
+        kernel_.write_dummy()
+
+
 class GetSqlCommandHandler(CommandHandler):
+
     def __init__(self):
-        self._command = 'getSql'
+        CommandHandler.__init__(self, 'getSql')
         
-    def execute(self, kernel):
-        name = kernel.read_string()
-        db_util = kernel.get_variable(name)
+    def execute(self, kernel_):
+        name = kernel_.read_string()
+        db_util = kernel_.get_variable(name)
         db_util._writer.commit()
         query = db_util.get_output_query()
-        kernel.write_string(query)
+        kernel_.write_string(query)
+
 
 # Reads the custom model directories (registred via the org.knime.python.modules
 # extension point) as comma separated list and adds them to the pythonpath
 class SetCustomModulePathsHandler(CommandHandler):
-    def __init__(self):
-        self._command = 'setCustomModulePaths'
-        
-    def execute(self, kernel):
-        path = kernel.read_string()
-        sys.path.append(path)
-        kernel.write_dummy()
 
-if __name__=="__main__":
+    def __init__(self):
+        CommandHandler.__init__(self, 'setCustomModulePaths')
+        
+    def execute(self, kernel_):
+        path = kernel_.read_string()
+        sys.path.append(path)
+        kernel_.write_dummy()
+
+
+if __name__ == "__main__":
     # Uncomment below and comment the run() call for profiling
     # See https://docs.python.org/3/library/profile.html on how to interpet the result
-    #import cProfile
-    #profilepath = os.path.join(os.path.expanduser('~'), 'profileres.txt')
-    #cProfile.run('kernel = PythonKernel(); kernel.run()', filename=profilepath)
+    # import cProfile
+    # profilepath = os.path.join(os.path.expanduser('~'), 'profileres.txt')
+    # cProfile.run('kernel = PythonKernel(); kernel.run()', filename=profilepath)
     kernel = PythonKernel()
     kernel.run()

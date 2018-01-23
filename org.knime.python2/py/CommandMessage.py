@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from pandas.core.dtypes.missing import isnull
-from tensorflow.contrib.layers.python.layers.feature_column_ops import _check_forbidden_sequence_columns
 
 # ------------------------------------------------------------------------
 #  Copyright by KNIME AG, Zurich, Switzerland
@@ -50,9 +49,19 @@ class CommandMessage(object):
     # @param cmd    a string command to trigger a certain Java response action
     # @param val    the value to process in Java, will be converted to string
     # @param requestsData true - the message requests data from java, false otherwise
+    def __init__(self, id, command, payload, further_options):
+        self._id = id
+        self._options = dict()
+        self._options['command'] = command
+        if further_options is not None:
+            self._options.update(further_options)
+        self._payload = payload
+        if self.forbidden_signs_in_options():
+            raise AttributeError("Forbidden character (@ or =) in message options detected!")
+
     def __init__(self, header, payload):
         self._header = header
-        self._options = {}
+        self._options = dict()
         self._payload = payload
         self._id = None
         for option in header.split("@"):
@@ -61,7 +70,7 @@ class CommandMessage(object):
                 self._id = int(option[option.find("=")+1:])
             else:
                 self._options[option[:option.find("=")]] = option[option.find("=")+1:]
-        if self.check_forbidden_sequence_columns():
+        if self.forbidden_signs_in_options():
             raise AttributeError("Forbidden character (@ or =) in message options detected!")
         if not "command" in self._options.keys():
             raise AttributeError("No command specified for message: " + header)
