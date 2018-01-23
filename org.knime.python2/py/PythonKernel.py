@@ -343,19 +343,6 @@ class PythonKernel(Borg):
         # Get the TypeExtensionManager instance
         self._type_extension_manager = TypeExtensionManager(self.write_message)
         
-        # Define global command handlers
-        self._command_handlers = [ExecuteCommandHandler(), PutFlowVariablesCommandHandler(),
-                                  GetFlowVariablesCommandHandler(), PutTableCommandHandler(),
-                                  AppendToTableCommandHandler(), GetTableSizeCommandHandler(),
-                                  GetTableCommandHandler(), GetTableChunkCommandHandler(),
-                                  ListVariablesCommandHandler(), ResetCommandHandler(),
-                                  HasAutoCompleteCommandHandler(), AutoCompleteCommandHandler(),
-                                  GetImageCommandHandler(), GetObjectCommandHandler(),
-                                  PutObjectCommandHandler(), AddSerializerCommandHandler(),
-                                  AddDeserializerCommandHandler(), ShutdownCommandHandler(),
-                                  PutSqlCommandHandler(), GetSqlCommandHandler(),
-                                  SetCustomModulePathsHandler()]
-        
         if sys.getdefaultencoding() != 'utf-8':
             warnings.warn('Your default encoding is not "utf-8". You may experience errors with non ascii characters!')
         
