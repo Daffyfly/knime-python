@@ -140,7 +140,7 @@ class DeserializerRequest(CommandMessage):
 #         return None
 
 
-class OutputMessage(CommandMessage):
+class ExecuteResponseMessage(CommandMessage):
 
     def __init__(self, id, output, error):
         header = '@id=' + str(id) + '@command=execute_response'
@@ -148,9 +148,100 @@ class OutputMessage(CommandMessage):
         payload_builder.add_string(output)
         payload_builder.add_string(error)
         CommandMessage.__init__(self, header, payload_builder.get_payload())
-        
+
+
 class IdMessage(CommandMessage):
     
     def __init__(self, msg_id, pid):
         header = '@id=' + str(msg_id) + '@command=getpid_response'
         CommandMessage.__init__(self, header, struct.pack(">L", pid))
+
+
+class GetFlowVariableResponseMessage(CommandMessage):
+
+    def __init__(self, id, data_bytes):
+        header = '@id=' + str(id) + '@command=getFlowVariable_response'
+        payload_builder = PayloadBuilder.PayloadBuilder()
+        payload_builder.add_bytes(data_bytes)
+        CommandMessage.__init__(self, header, payload_builder.get_payload())
+
+
+class GetTableSizeResponseMessage(CommandMessage):
+
+    def __init__(self, id, size):
+        header = '@id=' + str(id) + '@command=getTableSize_response'
+        payload_builder = PayloadBuilder.PayloadBuilder()
+        payload_builder.add_integer(size)
+        CommandMessage.__init__(self, header, payload_builder.get_payload())
+
+
+class GetTableResponseMessage(CommandMessage):
+
+    def __init__(self, id, data_bytes):
+        header = '@id=' + str(id) + '@command=getTable_response'
+        payload_builder = PayloadBuilder.PayloadBuilder()
+        payload_builder.add_bytes(data_bytes)
+        CommandMessage.__init__(self, header, payload_builder.get_payload())
+
+
+class GetTableChunkResponseMessage(CommandMessage):
+
+    def __init__(self, id, data_bytes):
+        header = '@id=' + str(id) + '@command=getTableChunk_response'
+        payload_builder = PayloadBuilder.PayloadBuilder()
+        payload_builder.add_bytes(data_bytes)
+        CommandMessage.__init__(self, header, payload_builder.get_payload())
+
+
+class ListVariablesResponseMessage(CommandMessage):
+
+    def __init__(self, id, data_bytes):
+        header = '@id=' + str(id) + '@command=listVariables_response'
+        payload_builder = PayloadBuilder.PayloadBuilder()
+        payload_builder.add_bytes(data_bytes)
+        CommandMessage.__init__(self, header, payload_builder.get_payload())
+
+
+class HasAutoCompleteResponseMessage(CommandMessage):
+
+    def __init__(self, id, value):
+        header = '@id=' + str(id) + '@command=HasAutoComplete_response'
+        payload_builder = PayloadBuilder.PayloadBuilder()
+        payload_builder.add_integer(value)
+        CommandMessage.__init__(self, header, payload_builder.get_payload())
+
+
+class AutoCompleteResponseMessage(CommandMessage):
+
+    def __init__(self, id, data_bytes):
+        header = '@id=' + str(id) + '@command=AutoComplete_response'
+        payload_builder = PayloadBuilder.PayloadBuilder()
+        payload_builder.add_bytes(data_bytes)
+        CommandMessage.__init__(self, header, payload_builder.get_payload())
+
+
+class GetImageResponseMessage(CommandMessage):
+
+    def __init__(self, id, data_bytes):
+        header = '@id=' + str(id) + '@command=GetImage_response'
+        payload_builder = PayloadBuilder.PayloadBuilder()
+        payload_builder.add_bytes(data_bytes)
+        CommandMessage.__init__(self, header, payload_builder.get_payload())
+
+
+class GetObjectResponseMessage(CommandMessage):
+
+    def __init__(self, id, data_bytes):
+        header = '@id=' + str(id) + '@command=GetObject_response'
+        payload_builder = PayloadBuilder.PayloadBuilder()
+        payload_builder.add_bytes(data_bytes)
+        CommandMessage.__init__(self, header, payload_builder.get_payload())
+
+
+class GetSqlResponseMessage(CommandMessage):
+
+    def __init__(self, id, query):
+        header = '@id=' + str(id) + '@command=GetSql_response'
+        payload_builder = PayloadBuilder.PayloadBuilder()
+        payload_builder.add_string(query)
+        CommandMessage.__init__(self, header, payload_builder.get_payload())

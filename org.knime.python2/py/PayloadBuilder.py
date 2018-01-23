@@ -58,5 +58,9 @@ class PayloadBuilder:
     def add_integer(self, integer):
         self.payload += struct.pack('>L', integer)
 
+    def add_bytes(self, data_bytes):
+        data_bytes_size = struct.pack('>L', len(data_bytes))
+        self.payload += data_bytes_size + data_bytes
+
     def get_payload(self):
         return self.payload
