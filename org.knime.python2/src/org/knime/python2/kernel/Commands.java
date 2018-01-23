@@ -55,12 +55,26 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Function;
 
+import org.knime.core.node.NodeLogger;
 import org.knime.core.node.util.CheckUtils;
+
+import com.google.common.primitives.Ints;
 
 /**
  * Used for communicating with the python kernel via commands sent over sockets.
@@ -81,6 +95,16 @@ public class Commands {
 
     private final Lock m_lock;
 
+    private int m_msgIdCtr;
+
+    private Executor m_executor;
+
+    private NodeLogger LOGGER = NodeLogger.getLogger(Commands.class);
+
+    private AtomicBoolean m_msgLoopRunning;
+
+    private CommandsHandler m_commandsHandler;
+
     /**
      * Constructor.
      *
@@ -94,6 +118,32 @@ public class Commands {
         m_bufferedInFromServer = new DataInputStream(m_inFromServer);
         m_bufferedOutToServer = new DataOutputStream(m_outToServer);
         m_messages = new CommandsMessages(this);
+        m_msgIdCtr = 0;
+        //TODO KNIME Threadpool ?
+        m_executor = Executors.newSingleThreadExecutor();
+        m_msgLoopRunning = new AtomicBoolean(true);
+        m_commandsHandler = new CommandsHandler();
+        m_messages.registerMessageHandler(m_commandsHandler);
+        m_executor.execute(new Runnable() {
+
+            @Override
+            public void run() {
+                while(m_msgLoopRunning.get()) {
+                    try {
+                        CommandMessage msg = m_messages.readMessage();
+                        m_messages.handleMessage(msg);
+                    } catch (IOException ex) {
+                        if(m_msgLoopRunning.get()) {
+                            LOGGER.warn("Could not read messge, cause: " + ex.getMessage());
+                        }
+                    }
+                }
+
+            }});
+    }
+
+    public void stopMessageLoop() {
+        m_msgLoopRunning.set(false);
     }
 
     /**
@@ -103,19 +153,45 @@ public class Commands {
         return m_messages;
     }
 
+    public void sendMessage(final CommandMessage msg) {
+        byte[] header = msg.getHeader().getBytes(StandardCharsets.UTF_8);
+        byte[] payload = msg.getPayload();
+        try {
+            m_bufferedOutToServer.writeInt(header.length);
+            m_bufferedOutToServer.writeInt(payload.length);
+            m_bufferedOutToServer.write(header);
+            m_bufferedOutToServer.write(payload);
+        } catch (IOException ex) {
+            LOGGER.error("IOException when sending message, cause: " + ex.getMessage());
+        }
+
+    }
+
+
+
     /**
      * Get the python kernel's process id.
      *
      * @return the process id
      * @throws IOException
      */
-    public int getPid() throws IOException {
+    public Future<Integer> getPid() throws IOException {
         m_lock.lock();
         try {
-            return readInt();
+            final int id = m_msgIdCtr++;
+            CommandMessage msg = new CommandMessage(id, "getpid", null, true, Optional.empty());
+            Future<Integer> result = m_commandsHandler.registerResponse(msg, new Function<CommandMessage, Integer>(){
+
+                @Override
+                public Integer apply(final CommandMessage t) {
+                    return Ints.fromByteArray(t.getPayload());
+                }});
+            sendMessage(msg);
+            return result;
         } finally {
             m_lock.unlock();
         }
+
     }
 
     /**
@@ -125,16 +201,28 @@ public class Commands {
      * @return warning or error messages that were emitted during execution
      * @throws IOException
      */
-    public String[] execute(final String sourceCode) throws IOException {
+    public Future<String[]> execute(final String sourceCode) throws IOException {
         m_lock.lock();
         try {
+            final int id = m_msgIdCtr++;
+            CommandMessage msg = new CommandMessage(id, "execute", sourceCode.getBytes(StandardCharsets.UTF_8), true, Optional.empty());
+            Future<String[]> result = m_commandsHandler.registerResponse(msg, new Function<CommandMessage, String[]>(){
+
+                @Override
+                public String[] apply(final CommandMessage t) {
+                    String outAndErrStr = new String(t.getPayload(), StandardCharsets.UTF_8);
+                    String[] outAndErr = outAndErrStr.split(";");
+                    return outAndErr;
+                }});
+            /*sendMessage(msg);
+            return result;
             writeString("execute");
             writeString(sourceCode);
             m_messages.waitForSuccessMessage();
             final String[] output = new String[2];
             output[0] = readString();
-            output[1] = readString();
-            return output;
+            output[1] = readString(); */
+            return result;
         } finally {
             m_lock.unlock();
         }
@@ -771,4 +859,131 @@ public class Commands {
             } while (!msg.getCommand().equals(SUCCESS_COMMAND));
         }
     }
+
+    private class CommandsHandler implements PythonToJavaMessageHandler {
+
+        private final HashMap<Integer, ResponseTask<?>> m_responseMap = new HashMap<Integer, ResponseTask<?>>();
+
+        public synchronized <T> Future<T> registerResponse(final CommandMessage msg, final Function<CommandMessage,T> response) {
+            ResponseTask<T> f = new ResponseTask<T>(response);
+            m_responseMap.put(msg.getId(), f);
+            return f;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public boolean tryHandle(final CommandMessage msg) throws Exception {
+            if(m_responseMap.containsKey(msg.getId())) {
+                m_responseMap.get(msg.getId()).run(msg);
+                m_responseMap.remove(msg.getId());
+                return true;
+            }
+            return false;
+        }
+
+        private class ResponseTask<T> implements Future<T> {
+
+            private boolean m_canceled = false;
+
+            private ReentrantLock m_lock;
+
+            private Condition m_waitForCompletion;
+
+            private Function<CommandMessage, T> m_function;
+
+            private T m_result;
+
+            public ResponseTask(final Function<CommandMessage, T> fun) {
+                m_lock = new ReentrantLock();
+                m_waitForCompletion = m_lock.newCondition();
+                m_function = fun;
+            }
+
+            public void run(final CommandMessage msg) {
+                m_lock.lock();
+                try{
+                    m_result = m_function.apply(msg);
+                    m_waitForCompletion.signalAll();
+                } finally {
+                    m_lock.unlock();
+                }
+            }
+
+            /**
+             * {@inheritDoc}
+             */
+            @Override
+            public boolean cancel(final boolean mayInterruptIfRunning) {
+                m_canceled = true;
+                if(mayInterruptIfRunning) {
+                    m_waitForCompletion.signalAll();
+                    return true;
+                }
+                return !m_lock.hasWaiters(m_waitForCompletion);
+            }
+
+            /**
+             * {@inheritDoc}
+             */
+            @Override
+            public T get() throws InterruptedException, ExecutionException {
+                m_lock.lock();
+                try{
+                    while(!m_canceled && m_result == null) {
+                        m_waitForCompletion.await();
+                    }
+                    if(m_canceled) {
+                        throw new CancellationException();
+                    }
+                    return m_result;
+                } finally {
+                    m_lock.unlock();
+                }
+            }
+
+            /**
+             * {@inheritDoc}
+             */
+            @Override
+            public T get(final long timeout, final TimeUnit unit)
+                throws InterruptedException, ExecutionException, TimeoutException {
+                m_lock.lock();
+                try{
+                    while(!m_canceled && m_result == null) {
+                        m_waitForCompletion.await(timeout, unit);
+                    }
+                    if(m_canceled) {
+                        throw new CancellationException();
+                    }
+                    if(m_result == null) {
+                        throw new TimeoutException();
+                    }
+                    return m_result;
+                } finally {
+                    m_lock.unlock();
+                }
+            }
+
+            /**
+             * {@inheritDoc}
+             */
+            @Override
+            public boolean isCancelled() {
+                return m_canceled;
+            }
+
+            /**
+             * {@inheritDoc}
+             */
+            @Override
+            public boolean isDone() {
+                return m_result != null;
+            }
+
+        }
+
+    }
+
 }

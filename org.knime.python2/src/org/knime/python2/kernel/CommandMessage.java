@@ -49,6 +49,7 @@
 package org.knime.python2.kernel;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Message class for wrapping command or status strings received from python.
@@ -59,21 +60,18 @@ public class CommandMessage {
 
     private int m_msgId;
 
-    /*private String m_command;
-
-    private String m_value;
-
-    private boolean m_isRequest; */
-
     private byte[] m_payload;
 
+    /**
+     * All header options except the id as key/value pairs
+     */
     protected Map<String,String> m_options;
 
-    private static String COMMAND_KEY = "command";
+    public final static String COMMAND_KEY = "command";
 
-    private static String ID_KEY = "command";
+    public final static String ID_KEY = "command";
 
-    private static String REQUEST_KEY = "request";
+    public final static String REQUEST_KEY = "request";
 
     /**
      * Constructor.
@@ -83,11 +81,14 @@ public class CommandMessage {
      * @param isRequest true if the message is a request meaning the python process is waiting for an appropriate
      *            response false otherwise
      */
-    public CommandMessage(final int msgId, final String command, final byte[] value, final Map<String,String> furtherOptions) {
+    public CommandMessage(final int msgId, final String command, final byte[] value, final boolean isRequest, final Optional<Map<String,String>> furtherOptions) {
         m_msgId = msgId;
         m_options.put(COMMAND_KEY, command);
         m_payload = value;
-        m_options.putAll(furtherOptions);
+        if(isRequest) {
+            m_options.put(REQUEST_KEY, "true");
+        }
+        m_options.putAll(furtherOptions.get());
         if(forbiddenSignsInMap()) {
             throw new IllegalArgumentException("Illegal character (@ or =) detected in options!");
         }
@@ -150,6 +151,14 @@ public class CommandMessage {
 
     public String getOption(final String key) {
         return m_options.get(key);
+    }
+
+    public String getHeader() {
+        String header = "@id=" + m_msgId;
+        for(String key:m_options.keySet()) {
+            header += "@" + key + "=" + m_options.get(key);
+        }
+        return header;
     }
 
     /**

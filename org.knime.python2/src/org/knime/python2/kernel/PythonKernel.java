@@ -390,8 +390,8 @@ public class PythonKernel implements AutoCloseable {
         });
         try {
             // First get PID of Python process
-            m_pid = m_commands.getPid();
-        } catch (EOFException ex) {
+            m_pid = m_commands.getPid().get().intValue();
+        } catch (EOFException | InterruptedException | ExecutionException ex) {
             throw new PythonKernelException("Could not start python kernel. See console and log file for more details.", ex);
         }
         try {
@@ -436,12 +436,20 @@ public class PythonKernel implements AutoCloseable {
         //If an error occurs it is transferred via the socket and available at position 1 of the returned
         //stringlist
         m_errorPrintListener.setAllWarnings(true);
-        final String[] output = m_commands.execute(sourceCode);
-        m_errorPrintListener.setAllWarnings(false);
-        if (output[0].length() > 0) {
-            LOGGER.debug(ScriptingNodeUtils.shortenString(output[0], 1000));
+        String[] output;
+        try {
+            output = m_commands.execute(sourceCode).get();
+            m_errorPrintListener.setAllWarnings(false);
+            if (output[0].length() > 0) {
+                LOGGER.debug(ScriptingNodeUtils.shortenString(output[0], 1000));
+            }
+            return output;
+        } catch (InterruptedException ex) {
+            LOGGER.warn("Python execute interrupted!");
+        } catch (ExecutionException ex) {
+            LOGGER.warn("Python execute failed!");
         }
-        return output;
+        return null;
     }
 
     /**
