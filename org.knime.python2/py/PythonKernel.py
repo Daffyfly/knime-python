@@ -384,7 +384,6 @@ class PythonKernel(Borg):
         self.load_serializer(serializer_path)
         
         # First send PID of this process (so it can reliably be killed later)
-        #self.write_integer(os.getpid())
         try:
             while 1:
                 self.run_command(self.read_message())
@@ -392,17 +391,8 @@ class PythonKernel(Borg):
             self._cleanup()
 
     def run_command(self, command_message):
-        handled = False
-#         command = command_message.get_command()
-#         for handler in self._command_handlers:
-#             if handler.has_command(command):
-#                 handler.execute(self)
-#                 handled = True
-#                 break
         handler = get_command_message_handler(command_message)
         handler.execute(self)
-        #if not handled:
-         #   raise LookupError('The command ' + command + ' was received but it cannot be handled by the Python Kernel.')
 
     def bytes_from_file(self, path):
         return open(path, 'rb').read()
@@ -835,16 +825,6 @@ class PythonKernel(Borg):
         #self.write_size(len(data))
         self._connection.sendall(data)
 
-    # writes an empty message
-    def write_dummy(self):
-        self.write_size(0)
-
-    def read_integer(self):
-        return struct.unpack('>L', self.read_data())[0]
-
-    def write_integer(self, integer):
-        self.write_data(struct.pack('>L', integer))
-
     def read_string(self):
         try:
             return self.read_data().decode('utf-8')
@@ -852,22 +832,6 @@ class PythonKernel(Borg):
             raise UnicodeError("Received string from java that is not utf8-encoded!")
         except:
             raise
-
-    def write_string(self, string):
-        self.write_data(bytearray(string, 'utf-8'))
-
-    def read_bytearray(self):
-        return bytearray(self.read_data())
-
-    def write_bytearray(self, data_bytes):
-        self.write_data(data_bytes)
-
-    def read_response(self, msg):
-        command_or_reponse = self.read_string()
-        while not (command_or_reponse == msg._cmd + "_response"):
-            self.run_command(command_or_reponse)
-            command_or_reponse = self.read_string()
-        return msg.process_response(self.read_data().decode('utf-8'))
 
     def write_message(self, msg):
         if not issubclass(type(msg), CommandMessage):

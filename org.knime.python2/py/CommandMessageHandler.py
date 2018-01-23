@@ -49,6 +49,7 @@ import debug_util
 import os
 import pandas
 
+
 class CommandMessageHandler:
 
     def __init__(self, command_message):
@@ -72,11 +73,11 @@ class ExecuteCommandMessageHandler(CommandMessageHandler):
 
     def execute(self, kernel_):
         source_code = self.get_payload_handler().read_string()
-        id = self.get_command_message().get_id()
+        id_ = self.get_command_message().get_id()
         debug_util.debug_msg('executing: ' + source_code + '\n')
         output, error = kernel_.execute(source_code)
         debug_util.debug_msg('executing done!')
-        kernel_.write_message(CommandMessage.ExecuteResponseMessage(id, output, error))
+        kernel_.write_message(CommandMessage.ExecuteResponseMessage(id_, output, error))
 
 
 class PutFlowVariablesCommandMessageHandler(CommandMessageHandler):
@@ -94,6 +95,7 @@ class PutFlowVariablesCommandMessageHandler(CommandMessageHandler):
         kernel_.put_variable(name, flow_variables)
         kernel_.write_message(SuccessMessage(self.get_command_message().get_id()))
 
+
 class GetFlowVariablesCommandMessageHandler(CommandMessageHandler):
 
     def __init__(self, command_message):
@@ -104,8 +106,8 @@ class GetFlowVariablesCommandMessageHandler(CommandMessageHandler):
         current_variables = kernel_.get_variable(name)
         data_frame = kernel_.flow_variables_dict_to_data_frame(current_variables)
         data_bytes = kernel_.data_frame_to_bytes(data_frame)
-        id = self.get_command_message().get_id()
-        kernel_.write_message(CommandMessage.GetFlowVariableResponseMessage(id, data_bytes))
+        id_ = self.get_command_message().get_id()
+        kernel_.write_message(GenericBytesMessage(id_, 'getFlowVariable_response', data_bytes))
 
 
 class PutTableCommandMessageHandler(CommandMessageHandler):
@@ -144,7 +146,8 @@ class GetTableSizeCommandMessageHandler(CommandMessageHandler):
     def execute(self, kernel_):
         name = self.get_payload_handler().read_string()
         data_frame = kernel_.get_variable(name)
-        kernel_.write_message(GetTableSizeResponseMessage(len(data_frame)))
+        id_ = self.get_command_message().get_id()
+        kernel_.write_message(GenericIntegerMessage(id_, 'getTableSize_response', len(data_frame)))
 
 
 class GetTableCommandMessageHandler(CommandMessageHandler):
@@ -161,8 +164,8 @@ class GetTableCommandMessageHandler(CommandMessageHandler):
                                                                                          " output_table is"
                                                                                          " a pandas.DataFrame.")
         data_bytes = kernel_.data_frame_to_bytes(data_frame)
-        id = self.get_command_message().get_id()
-        kernel_.write_message(GetTableResponseResponseMessage(id, data_bytes))
+        id_ = self.get_command_message().get_id()
+        kernel_.write_message(GenericBytesMessage(id_, 'getTable_response', data_bytes))
 
 
 class GetTableChunkCommandMessageHandler(CommandMessageHandler):
@@ -183,8 +186,8 @@ class GetTableChunkCommandMessageHandler(CommandMessageHandler):
                                                                                          " pandas.DataFrame.")
         data_frame_chunk = data_frame[start:end+1]
         data_bytes = kernel_.data_frame_to_bytes(data_frame_chunk, start)
-        id = self.get_command_message().get_id()
-        kernel_.write_message(GetTableChunkResponseMessage(id, data_bytes))
+        id_ = self.get_command_message().get_id()
+        kernel_.write_message(GenericBytesMessage(id_, 'getTableChunk_response', data_bytes))
 
 
 class ListVariablesCommandMessageHandler(CommandMessageHandler):
@@ -196,8 +199,8 @@ class ListVariablesCommandMessageHandler(CommandMessageHandler):
         variables = kernel_.list_variables()
         data_frame = DataFrame(variables)
         data_bytes = kernel_.data_frame_to_bytes(data_frame)
-        id = self.get_command_message().get_id()
-        kernel_.write_message(ListVariablesResponseMessage(id, data_bytes))
+        id_ = self.get_command_message().get_id()
+        kernel_.write_message(GenericBytesMessage(id_, 'listVariables_response', data_bytes))
 
 
 class ResetCommandMessageHandler(CommandMessageHandler):
@@ -220,8 +223,8 @@ class HasAutoCompleteCommandMessageHandler(CommandMessageHandler):
             value = 1
         else:
             value = 0
-        id = self.get_command_message().get_id()
-        kernel_.write_message(HasAutoCompleteResponseMessage(id, value))
+        id_ = self.get_command_message().get_id()
+        kernel_.write_message(GenericIntegerMessage(id_, 'HasAutoComplete_response', value))
 
 
 class AutoCompleteCommandMessageHandler(CommandMessageHandler):
@@ -237,8 +240,8 @@ class AutoCompleteCommandMessageHandler(CommandMessageHandler):
         suggestions = kernel_.auto_complete(source_code, line, column)
         data_frame = DataFrame(suggestions)
         data_bytes = kernel_.data_frame_to_bytes(data_frame)
-        id = self.get_command_message().get_id()
-        kernel_.write_message(AutoCompleteResponseMessage(id, data_bytes))
+        id_ = self.get_command_message().get_id()
+        kernel_.write_message(GenericBytesMessage(id_, 'AutoComplete_response', data_bytes))
 
 
 class GetImageCommandMessageHandler(CommandMessageHandler):
@@ -259,8 +262,8 @@ class GetImageCommandMessageHandler(CommandMessageHandler):
                 data_bytes = image
             else:
                 data_bytes = ''
-        id = self.get_command_message().get_id()
-        kernel_.write_message(GetImageResponseMessage(id, data_bytes))
+        id_ = self.get_command_message().get_id()
+        kernel_.write_message(GenericBytesMessage(id_, 'GetImage_response', data_bytes))
 
 
 class GetObjectCommandMessageHandler(CommandMessageHandler):
@@ -276,8 +279,8 @@ class GetObjectCommandMessageHandler(CommandMessageHandler):
         o_representation = kernel_.object_to_string(data_object)
         data_frame = DataFrame([{'bytes': o_bytes, 'type': o_type, 'representation': o_representation}])
         data_bytes = kernel_.data_frame_to_bytes(data_frame)
-        id = self.get_command_message().get_id()
-        kernel_.write_message(GetObjectResponseMessage(id, data_bytes))
+        id_ = self.get_command_message().get_id()
+        kernel_.write_message(GenericBytesMessage(id_, 'GetObject_response', data_bytes))
 
 
 class PutObjectCommandMessageHandler(CommandMessageHandler):
@@ -357,8 +360,8 @@ class GetSqlCommandMessageHandler(CommandMessageHandler):
         db_util = kernel_.get_variable(name)
         db_util._writer.commit()
         query = db_util.get_output_query()
-        id = self.get_command_message().get_id()
-        kernel_.write_message(GetSqlResponseMessage(id, query))
+        id_ = self.get_command_message().get_id()
+        kernel_.write_message(GenericStringMessage(id_, 'GetSql_response', query))
 
 
 class SetCustomModulePathsCommandMessageHandler(CommandMessageHandler):
@@ -370,7 +373,8 @@ class SetCustomModulePathsCommandMessageHandler(CommandMessageHandler):
         path = self.get_payload_handler().read_string()
         sys.path.append(path)
         kernel_.write_message(SuccessMessage(self.get_command_message().get_id()))
-        
+
+
 class GetPidCommandMessageHandler(CommandMessageHandler):
     
     def __init__(self, command_message):
@@ -378,9 +382,8 @@ class GetPidCommandMessageHandler(CommandMessageHandler):
         
     def execute(self, kernel_):
         pid = os.getpid()
-        response = IdMessage(self._command_message.get_id(), pid)
-        kernel_.write_message(response)
-
+        id_ = self.get_command_message().get_id()
+        kernel_.write_message(GenericIntegerMessage(id_, 'getpid_response', pid))
 
 
 _command_message_handlers = {'execute': ExecuteCommandMessageHandler,
@@ -408,4 +411,7 @@ _command_message_handlers = {'execute': ExecuteCommandMessageHandler,
 
 
 def get_command_message_handler(command_message):
+    if not command_message.get_command() in _command_message_handlers:
+       raise LookupError('The command ' + command_message.get_command() + ' was received but it cannot be handled by'
+                                                                          ' the Python Kernel.')
     return _command_message_handlers[command_message.get_command()](command_message)

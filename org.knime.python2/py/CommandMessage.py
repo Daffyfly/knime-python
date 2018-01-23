@@ -46,20 +46,9 @@ import struct
 #  when such Node is propagated with or for interoperation with KNIME.
 # ------------------------------------------------------------------------
 
+
 # Used for defining messages that can be sent to Java
 class CommandMessage(object):
-    # @param cmd    a string command to trigger a certain Java response action
-    # @param val    the value to process in Java, will be converted to string
-    # @param requestsData true - the message requests data from java, false otherwise
-    def __init__(self, id, command, payload, further_options):
-        self._id = id
-        self._options = dict()
-        self._options['command'] = command
-        if further_options is not None:
-            self._options.update(further_options)
-        self._payload = payload
-        if self.forbidden_signs_in_options():
-            raise AttributeError("Forbidden character (@ or =) in message options detected!")
 
     def __init__(self, header, payload):
         self._header = header
@@ -76,7 +65,7 @@ class CommandMessage(object):
                 self._options[option[:option.find("=")]] = option[option.find("=")+1:]
         if self.forbidden_signs_in_options():
             raise AttributeError("Forbidden character (@ or =) in message options detected!")
-        if not "command" in self._options.keys():
+        if "command" not in self._options.keys():
             raise AttributeError("No command specified for message: " + header)
         if self._id is None:
             raise AttributeError("No id specified for message: " + header)
@@ -107,141 +96,55 @@ class CommandMessage(object):
 
 # Used for indicating the successful termination of a command        
 class SuccessMessage(CommandMessage):
-    def __init__(self, id):
-        CommandMessage.__init__(self, '@id=' + id + '@command=success', None)
+    def __init__(self, id_):
+        CommandMessage.__init__(self, '@id=' + str(id_) + '@command=success', None)
+
 
 # Used for requesting a serializer from java. The value may either be the
 # python type that is to be serialized or the extension id
 class SerializerRequest(CommandMessage):
-    def __init__(self, id, val):
-        CommandMessage.__init__(self, '@id=' + id + '@command=serializer_request@request=true', val)
-    
-#     def process_response(self, val):
-#         try:
-#             res = val.split(';')
-#             if(res[0] != ''):
-#                 return res
-#         except:
-#             pass
-#         return None
+    def __init__(self, id_, val):
+        CommandMessage.__init__(self, '@id=' + str(id_) + '@command=serializer_request@request=true', val)
+
 
 # Used for requesting a deserializer from java. The value should be the extension id.       
 class DeserializerRequest(CommandMessage):
-    def __init__(self, val):
-        CommandMessage.__init__(self, '@id=' + id + '@command=deserializer_request@request=true', val)
-    
-#     def process_response(self, val):
-#         try:
-#             res = val.split(';')
-#             if(res[0] != ''):
-#                 return res
-#         except:
-#             pass
-#         return None
+    def __init__(self, id_, val):
+        CommandMessage.__init__(self, '@id=' + str(id_) + '@command=deserializer_request@request=true', val)
 
 
 class ExecuteResponseMessage(CommandMessage):
 
-    def __init__(self, id, output, error):
-        header = '@id=' + str(id) + '@command=execute_response'
+    def __init__(self, id_, output, error):
+        header = '@id=' + str(id_) + '@command=execute_response'
         payload_builder = PayloadBuilder.PayloadBuilder()
         payload_builder.add_string(output)
         payload_builder.add_string(error)
         CommandMessage.__init__(self, header, payload_builder.get_payload())
 
 
-class IdMessage(CommandMessage):
-    
-    def __init__(self, msg_id, pid):
-        header = '@id=' + str(msg_id) + '@command=getpid_response'
-        CommandMessage.__init__(self, header, struct.pack(">L", pid))
+class GenericIntegerMessage(CommandMessage):
+
+    def __init__(self, id_, command, integer):
+        header = '@id=' + str(id_) + '@command=' + command
+        payload_builder = PayloadBuilder.PayloadBuilder()
+        payload_builder.add_integer(integer)
+        CommandMessage.__init__(self, header, payload_builder.get_payload())
 
 
-class GetFlowVariableResponseMessage(CommandMessage):
+class GenericStringMessage(CommandMessage):
 
-    def __init__(self, id, data_bytes):
-        header = '@id=' + str(id) + '@command=getFlowVariable_response'
+    def __init__(self, id_, command, string):
+        header = '@id=' + str(id_) + '@command=' + command
+        payload_builder = PayloadBuilder.PayloadBuilder()
+        payload_builder.add_string(string)
+        CommandMessage.__init__(self, header, payload_builder.get_payload())
+
+
+class GenericBytesMessage(CommandMessage):
+
+    def __init__(self, id_, command, data_bytes):
+        header = '@id=' + str(id_) + '@command=' + command
         payload_builder = PayloadBuilder.PayloadBuilder()
         payload_builder.add_bytes(data_bytes)
-        CommandMessage.__init__(self, header, payload_builder.get_payload())
-
-
-class GetTableSizeResponseMessage(CommandMessage):
-
-    def __init__(self, id, size):
-        header = '@id=' + str(id) + '@command=getTableSize_response'
-        payload_builder = PayloadBuilder.PayloadBuilder()
-        payload_builder.add_integer(size)
-        CommandMessage.__init__(self, header, payload_builder.get_payload())
-
-
-class GetTableResponseMessage(CommandMessage):
-
-    def __init__(self, id, data_bytes):
-        header = '@id=' + str(id) + '@command=getTable_response'
-        payload_builder = PayloadBuilder.PayloadBuilder()
-        payload_builder.add_bytes(data_bytes)
-        CommandMessage.__init__(self, header, payload_builder.get_payload())
-
-
-class GetTableChunkResponseMessage(CommandMessage):
-
-    def __init__(self, id, data_bytes):
-        header = '@id=' + str(id) + '@command=getTableChunk_response'
-        payload_builder = PayloadBuilder.PayloadBuilder()
-        payload_builder.add_bytes(data_bytes)
-        CommandMessage.__init__(self, header, payload_builder.get_payload())
-
-
-class ListVariablesResponseMessage(CommandMessage):
-
-    def __init__(self, id, data_bytes):
-        header = '@id=' + str(id) + '@command=listVariables_response'
-        payload_builder = PayloadBuilder.PayloadBuilder()
-        payload_builder.add_bytes(data_bytes)
-        CommandMessage.__init__(self, header, payload_builder.get_payload())
-
-
-class HasAutoCompleteResponseMessage(CommandMessage):
-
-    def __init__(self, id, value):
-        header = '@id=' + str(id) + '@command=HasAutoComplete_response'
-        payload_builder = PayloadBuilder.PayloadBuilder()
-        payload_builder.add_integer(value)
-        CommandMessage.__init__(self, header, payload_builder.get_payload())
-
-
-class AutoCompleteResponseMessage(CommandMessage):
-
-    def __init__(self, id, data_bytes):
-        header = '@id=' + str(id) + '@command=AutoComplete_response'
-        payload_builder = PayloadBuilder.PayloadBuilder()
-        payload_builder.add_bytes(data_bytes)
-        CommandMessage.__init__(self, header, payload_builder.get_payload())
-
-
-class GetImageResponseMessage(CommandMessage):
-
-    def __init__(self, id, data_bytes):
-        header = '@id=' + str(id) + '@command=GetImage_response'
-        payload_builder = PayloadBuilder.PayloadBuilder()
-        payload_builder.add_bytes(data_bytes)
-        CommandMessage.__init__(self, header, payload_builder.get_payload())
-
-
-class GetObjectResponseMessage(CommandMessage):
-
-    def __init__(self, id, data_bytes):
-        header = '@id=' + str(id) + '@command=GetObject_response'
-        payload_builder = PayloadBuilder.PayloadBuilder()
-        payload_builder.add_bytes(data_bytes)
-        CommandMessage.__init__(self, header, payload_builder.get_payload())
-
-
-class GetSqlResponseMessage(CommandMessage):
-
-    def __init__(self, id, query):
-        header = '@id=' + str(id) + '@command=GetSql_response'
-        payload_builder = PayloadBuilder.PayloadBuilder()
-        payload_builder.add_string(query)
         CommandMessage.__init__(self, header, payload_builder.get_payload())
