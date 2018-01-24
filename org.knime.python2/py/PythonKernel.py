@@ -63,6 +63,7 @@ from Borg import Borg
 from CommandMessageHandler import *
 from MessageHandler import *
 import threading
+from ReadWriteLock import *
 
 # suppress FutureWarnings
 import warnings
@@ -332,6 +333,7 @@ class PythonKernel(Borg):
         # Locks
         self._lock_read = threading.Lock()
         self._lock_write = threading.Lock()
+        self._lock_exec_env = ReadWriteLock()
 
         # global variables in the execution environment
         self._exec_env = {'request_from_java': self.send_message}
@@ -460,93 +462,120 @@ class PythonKernel(Borg):
 
     # execute the given source code
     def execute(self, source_code):
-        output = StringIO()
-        error = StringIO()
-        
-        # log to stdout and output variable simultaneously
-        backup_std_out = sys.stdout
-        sys.stdout = Logger(sys.stdout, output)
-        
-        # run execute with the provided source code
         try:
-            exec(source_code, self._exec_env, self._exec_env)
-        except Exception:
-            backup_std_error = sys.stderr
-            sys.stderr = error
-            traceback.print_exc()
-            sys.stderr = backup_std_error
-        
-        sys.stdout = backup_std_out
-        return [output.getvalue(), error.getvalue()]
+            self._lock_exec_env.acquire_write()
+            output = StringIO()
+            error = StringIO()
 
+            # log to stdout and output variable simultaneously
+            backup_std_out = sys.stdout
+            sys.stdout = Logger(sys.stdout, output)
+
+            # run execute with the provided source code
+            try:
+                exec(source_code, self._exec_env, self._exec_env)
+            except Exception:
+                backup_std_error = sys.stderr
+                sys.stderr = error
+                traceback.print_exc()
+                sys.stderr = backup_std_error
+
+            sys.stdout = backup_std_out
+            return [output.getvalue(), error.getvalue()]
+        finally:
+            self._lock_exec_env.release_write()
 
     # put the given variable into the local environment under the given name
     def put_variable(self, name, variable):
-        self._exec_env[name] = variable
+        try:
+            self._lock_exec_env.acquire_write()
+            self._exec_env[name] = variable
+        finally:
+            self._lock_exec_env.release_write()
 
     # append the given data frame to an existing one, if it does not exist put the data frame into the local environment
     def append_to_table(self, name, data_frame):
-        if self._exec_env[name] is None:
-            self._exec_env[name] = data_frame
-        else:
-            self._exec_env[name] = self._exec_env[name].append(data_frame)
+        try:
+            self._lock_exec_env.acquire_write()
+            if self._exec_env[name] is None:
+                self._exec_env[name] = data_frame
+            else:
+                self._exec_env[name] = self._exec_env[name].append(data_frame)
+        finally:
+            self._lock_exec_env.release_write()
 
     # get the variable with the given name
     def get_variable(self, name):
-        if name in self._exec_env:
-            return self._exec_env[name]
-        else:
-            raise NameError(name + ' is not defined.')
+        try:
+            self._lock_exec_env.acquire_read()
+            if name in self._exec_env:
+                return self._exec_env[name]
+            else:
+                raise NameError(name + ' is not defined.')
+        finally:
+            self._lock_exec_env.release_read()
         
     # get the variable with the given name if available in the workspace
     # or the default otherwise
     def get_variable_or_default(self, name, default):
-        if name in self._exec_env:
-            return self._exec_env[name]
-        else:
-            return default
+        try:
+            self._lock_exec_env.acquire_read()
+            if name in self._exec_env:
+                return self._exec_env[name]
+            else:
+                return default
+        finally:
+            self._lock_exec_env.release_read()
 
     # list all currently loaded modules and defined classes, functions and variables
     def list_variables(self):
-        # create lists of modules, classes, functions and variables
-        modules = []
-        classes = []
-        functions = []
-        variables = []
-        # iterate over dictionary to and put modules, classes, functions and variables in their respective lists
-        for key, value in dict(self._exec_env).items():
-            # get name of the type
-            var_type = type(value).__name__
-            # class type changed from classobj to type in python 3
-            class_type = 'classobj'
-            if _python3:
-                class_type = 'type'
-            if var_type == 'module':
-                modules.append({'name': key, 'type': var_type, 'value': ''})
-            elif var_type == class_type:
-                classes.append({'name': key, 'type': var_type, 'value': ''})
-            elif var_type == 'function':
-                functions.append({'name': key, 'type': var_type, 'value': ''})
-            elif key != '__builtins__':
-                value = self.object_to_string(value)
-                variables.append({'name': key, 'type': var_type, 'value': value})
-        # sort lists by name
-        modules = sorted(modules, key=lambda k: k['name'])
-        classes = sorted(classes, key=lambda k: k['name'])
-        functions = sorted(functions, key=lambda k: k['name'])
-        variables = sorted(variables, key=lambda k: k['name'])
-        # create response list and add contents of the other lists in the order they should be displayed
-        response = []
-        response.extend(modules)
-        response.extend(classes)
-        response.extend(functions)
-        response.extend(variables)
-        return response
+        try:
+            self._lock_exec_env.acquire_read()
+            # create lists of modules, classes, functions and variables
+            modules = []
+            classes = []
+            functions = []
+            variables = []
+            # iterate over dictionary to and put modules, classes, functions and variables in their respective lists
+            for key, value in dict(self._exec_env).items():
+                # get name of the type
+                var_type = type(value).__name__
+                # class type changed from classobj to type in python 3
+                class_type = 'classobj'
+                if _python3:
+                    class_type = 'type'
+                if var_type == 'module':
+                    modules.append({'name': key, 'type': var_type, 'value': ''})
+                elif var_type == class_type:
+                    classes.append({'name': key, 'type': var_type, 'value': ''})
+                elif var_type == 'function':
+                    functions.append({'name': key, 'type': var_type, 'value': ''})
+                elif key != '__builtins__':
+                    value = self.object_to_string(value)
+                    variables.append({'name': key, 'type': var_type, 'value': value})
+            # sort lists by name
+            modules = sorted(modules, key=lambda k: k['name'])
+            classes = sorted(classes, key=lambda k: k['name'])
+            functions = sorted(functions, key=lambda k: k['name'])
+            variables = sorted(variables, key=lambda k: k['name'])
+            # create response list and add contents of the other lists in the order they should be displayed
+            response = []
+            response.extend(modules)
+            response.extend(classes)
+            response.extend(functions)
+            response.extend(variables)
+            return response
+        finally:
+            self._lock_exec_env.release_read()
 
     # reset the current environment
     def reset(self):
-        # reset environment by emptying variable definitions
-        self._exec_env = {}
+        try:
+            self._lock_exec_env.acquire_write()
+            # reset environment by emptying variable definitions
+            self._exec_env = {}
+        finally:
+            self._lock_exec_env.release_write()
 
     # returns true if auto complete is available, false otherwise
     def has_auto_complete(self):
