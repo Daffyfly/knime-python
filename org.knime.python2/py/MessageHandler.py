@@ -72,11 +72,14 @@ class MessageHandler:
                 self._pool.submit(handler.execute, self._kernel)
 
     def send_message(self, message):
+        answer = None
         if message.is_data_request():
             self._waiting_for_answers_lock.aquire()
-            self._waiting_for_answers[message.get_id()] = AnswerFuture()
+            answer = AnswerFuture()
+            self._waiting_for_answers[message.get_id()] = answer
             self._waiting_for_answers_lock.release()
         self._kernel.write_message(message)
+        return answer
 
 
 class AnswerFuture:
