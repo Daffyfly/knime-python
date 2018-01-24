@@ -57,19 +57,24 @@ class MessageHandler:
         self._pool = futures.ThreadPoolExecutor(number_threads)
         self._waiting_for_answers = dict()
         self._waiting_for_answers_lock = threading.Lock()
+        self._running = True
 
     def main_loop(self):
-        while 1:
-            message = self._kernel.read_message()
-            message_id = message.get_id()
-            self._waiting_for_answers_lock.acquire()
-            in_waiting_for_answers = message_id in self._waiting_for_answers
-            if in_waiting_for_answers:
-                self._waiting_for_answers[message_id].set_answer(message)
-            self._waiting_for_answers_lock.release()
-            if not in_waiting_for_answers:
-                handler = CommandMessageHandler.get_command_message_handler(message)
-                self._pool.submit(handler.execute, self._kernel)
+        try:
+            while self._running:
+                message = self._kernel.read_message()
+                message_id = message.get_id()
+                self._waiting_for_answers_lock.acquire()
+                in_waiting_for_answers = message_id in self._waiting_for_answers
+                if in_waiting_for_answers:
+                    self._waiting_for_answers[message_id].set_answer(message)
+                self._waiting_for_answers_lock.release()
+                if not in_waiting_for_answers:
+                    handler = CommandMessageHandler.get_command_message_handler(message)
+                    self._pool.submit(handler.execute, self._kernel)
+            exit()
+        finally:
+            self.shutdown()
 
     def send_message(self, message):
         answer = None
@@ -80,6 +85,10 @@ class MessageHandler:
             self._waiting_for_answers_lock.release()
         self._kernel.write_message(message)
         return answer
+
+    def shutdown(self):
+        self._running = False
+        self._pool.shutdown()
 
 
 class AnswerFuture:

@@ -380,7 +380,7 @@ class PythonKernel(Borg):
             self._message_handler = MessageHandler(self)
             self._message_handler.main_loop()
         finally:
-            self._cleanup()
+            self.shutdown()
 
     def run_command(self, command_message):
         #debug_util.breakpoint()
@@ -460,6 +460,10 @@ class PythonKernel(Borg):
                     obj._cleanup()
                 except Exception:
                     pass
+
+    def shutdown(self):
+        self._cleanup()
+        self._message_handler.shutdown()
 
     # execute the given source code
     def execute(self, source_code):

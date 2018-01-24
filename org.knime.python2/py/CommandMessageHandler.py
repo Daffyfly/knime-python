@@ -334,8 +334,7 @@ class ShutdownCommandMessageHandler(CommandMessageHandler):
         CommandMessageHandler.__init__(self, command_message)
 
     def execute(self, kernel_):
-        kernel_._cleanup()
-        exit()
+        kernel_.shutdown()
 
 
 class PutSqlCommandMessageHandler(CommandMessageHandler):
