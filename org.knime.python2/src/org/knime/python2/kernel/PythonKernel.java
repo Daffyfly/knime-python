@@ -262,7 +262,7 @@ public class PythonKernel implements AutoCloseable {
         final ProcessBuilder pb;
         if (!m_kernelOptions.getUsePython3()) {
             //Python2 start without site to set default encoding to utf-8
-            pb = new ProcessBuilder(Activator.getPython2Command(), "-u", "-S", scriptPath, "" + port,
+            pb = new ProcessBuilder(Activator.getPython2Command(), "-u", /*"-S",*/ scriptPath, "" + port,
                 serializerPythonPath);
         } else {
             pb = new ProcessBuilder(Activator.getPython3Command(), "-u", scriptPath, "" + port, serializerPythonPath);

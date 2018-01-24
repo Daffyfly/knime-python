@@ -45,8 +45,8 @@
 
 import sys
 _python3 = sys.version_info >= (3, 0)
-if not _python3:
-    sys.setdefaultencoding('utf-8')
+# if not _python3:
+#    sys.setdefaultencoding('utf-8')
 import math
 import socket
 import struct

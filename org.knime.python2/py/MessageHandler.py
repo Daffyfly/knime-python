@@ -45,14 +45,14 @@
 from concurrent import futures
 import CommandMessageHandler
 import threading
-import os
+import multiprocessing
 
 
 class MessageHandler:
 
     def __init__(self, kernel, number_threads=None):
         if number_threads is None:
-            number_threads = os.cpu_count() * 2
+            number_threads = multiprocessing.cpu_count() * 2
         self._kernel = kernel
         self._pool = futures.ThreadPoolExecutor(number_threads)
         self._waiting_for_answers = dict()
