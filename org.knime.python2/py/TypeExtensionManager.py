@@ -143,7 +143,7 @@ class TypeExtensionManager(Borg):
         res.append(payload_handler.read_string())
         res.append(payload_handler.read_string())
         # No serializer was found for request
-        if res == None:
+        if res[0] == '' or res[1] == '':
             raise LookupError('No serializer extension having the id or processing python type "' + typeOrId + '" could be found.')
         self.add_serializer(res[0], res[1], res[2])
         return len(self._serializers) - 1
@@ -158,7 +158,7 @@ class TypeExtensionManager(Borg):
         res.append(payload_handler.read_string())
         res.append(payload_handler.read_string())
         # No serializer was found for request
-        if res == None:
+        if res[0] == '' or res[1] == '':
             raise LookupError('No deserializer extension having the id "' + typeOrId + '" could be found.')
         #debug_util.breakpoint()
         self.add_deserializer(res[0], res[1])
