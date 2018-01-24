@@ -223,7 +223,9 @@ public class Commands {
         m_lock.lock();
         try {
             final int id = m_msgIdCtr++;
-            CommandMessage msg = new CommandMessage(id, "execute", sourceCode.getBytes(StandardCharsets.UTF_8), true, Optional.empty());
+            PayloadEncoder enc = new PayloadEncoder();
+            enc.putString(sourceCode);
+            CommandMessage msg = new CommandMessage(id, "execute", enc.get(), true, Optional.empty());
             Future<String[]> result = m_commandsHandler.registerResponse(msg, new Function<CommandMessage, String[]>(){
 
                 @Override
@@ -984,7 +986,7 @@ public class Commands {
 
         public CommandsMessages(final Commands commands) {
             m_commands = commands;
-            registerMessageHandler(SUCCESS_HANDLER);
+            //registerMessageHandler(SUCCESS_HANDLER);
         }
 
         @Override
@@ -1033,7 +1035,7 @@ public class Commands {
             int headerSize = readInt(m_commands.m_bufferedInFromServer);
             int payloadSize = readInt(m_commands.m_bufferedInFromServer);
             String header = readString(m_commands.m_bufferedInFromServer, headerSize);
-            byte[] payload = readBytes(m_commands.m_bufferedInFromServer, payloadSize);
+            byte[] payload = payloadSize > 0 ? readBytes(m_commands.m_bufferedInFromServer, payloadSize) : null;
 
             return new CommandMessage(header, payload);
         }

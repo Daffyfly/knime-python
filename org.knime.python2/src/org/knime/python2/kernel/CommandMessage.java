@@ -212,39 +212,46 @@ public class CommandMessage {
 
     public static class PayloadEncoder {
         private ByteBuffer m_buff;
+        private int m_position;
 
         public PayloadEncoder() {
             m_buff = ByteBuffer.allocate(1024);
+            m_position = 0;
         }
 
         public void makeSpace(final int size) {
-            while(m_buff.remaining() < size) {
+            while(m_buff.capacity() - m_position < size) {
                 ByteBuffer tmp = m_buff;
                 m_buff = ByteBuffer.allocate(tmp.capacity() * 2);
+                tmp.position(0);
                 m_buff.put(tmp);
-                m_buff.position(tmp.position());
+                m_buff.position(m_position);
             }
         }
 
         public void putString(final String s) {
-            makeSpace(s.length() + 4);
-            m_buff.putInt(s.length());
-            m_buff.put(s.getBytes(StandardCharsets.UTF_8));
+            byte[] bytes = s.getBytes(StandardCharsets.UTF_8);
+            putBytes(bytes);
         }
 
         public void putBytes(final byte[] bytes) {
             makeSpace(bytes.length + 4);
-            m_buff.putInt(bytes.length);
+            m_buff.putInt(m_position,bytes.length);
+            m_position += 4;
+            m_buff.position(m_position);
             m_buff.put(bytes);
+            m_position += bytes.length;
         }
 
         public void putInt(final int i) {
             makeSpace(4);
-            m_buff.putInt(i);
+            m_buff.putInt(m_position,i);
+            m_position += 4;
         }
 
         public byte[] get() {
-            byte[] payload = new byte[m_buff.position()];
+            byte[] payload = new byte[m_position];
+            m_buff.position(0);
             m_buff.get(payload);
             return payload;
         }

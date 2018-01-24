@@ -343,19 +343,6 @@ class PythonKernel(Borg):
         # Get the TypeExtensionManager instance
         self._type_extension_manager = TypeExtensionManager(self.write_message)
         
-        # Define global command handlers
-        self._command_handlers = [ExecuteCommandHandler(), PutFlowVariablesCommandHandler(),
-                                  GetFlowVariablesCommandHandler(), PutTableCommandHandler(),
-                                  AppendToTableCommandHandler(), GetTableSizeCommandHandler(),
-                                  GetTableCommandHandler(), GetTableChunkCommandHandler(),
-                                  ListVariablesCommandHandler(), ResetCommandHandler(),
-                                  HasAutoCompleteCommandHandler(), AutoCompleteCommandHandler(),
-                                  GetImageCommandHandler(), GetObjectCommandHandler(),
-                                  PutObjectCommandHandler(), AddSerializerCommandHandler(),
-                                  AddDeserializerCommandHandler(), ShutdownCommandHandler(),
-                                  PutSqlCommandHandler(), GetSqlCommandHandler(),
-                                  SetCustomModulePathsHandler()]
-        
         if sys.getdefaultencoding() != 'utf-8':
             warnings.warn('Your default encoding is not "utf-8". You may experience errors with non ascii characters!')
         
@@ -391,6 +378,7 @@ class PythonKernel(Borg):
             self._cleanup()
 
     def run_command(self, command_message):
+        #debug_util.breakpoint()
         handler = get_command_message_handler(command_message)
         handler.execute(self)
 
@@ -487,7 +475,7 @@ class PythonKernel(Borg):
             sys.stderr = backup_std_error
         
         sys.stdout = backup_std_out
-        self.write_message(SuccessMessage())
+        #self.write_message(SuccessMessage())
         return [output.getvalue(), error.getvalue()]
 
 
@@ -838,17 +826,24 @@ class PythonKernel(Borg):
             raise TypeError("write_message was called with an object of a type not inheriting CommandMessage!")
         header = msg.get_header().encode('utf-8')
         payload = msg.get_payload()
-        #debug_util.breakpoint()
+        debug_util.breakpoint()
         self.write_size(len(header))
-        self.write_size(len(payload))
+        if payload:
+            self.write_size(len(payload))
+        else:
+            self.write_size(0)
         self.write_data(header)
-        self.write_data(payload)
+        if payload:
+            self.write_data(payload)
 
     def read_message(self):
         header_size = self.read_size()
         payload_size = self.read_size()
         header = self.read_data(header_size).decode('utf-8')
-        payload = self.read_data(payload_size)
+        if payload_size > 0:
+            payload = self.read_data(payload_size)
+        else:
+            payload = None
         return CommandMessage(header, payload)
 
     # Get the {@link Simpletype} of a column in the passed dataframe and the serializer_id

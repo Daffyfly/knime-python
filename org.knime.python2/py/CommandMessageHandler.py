@@ -48,6 +48,7 @@ from CommandMessage import *
 import debug_util
 import os
 import pandas
+import collections
 
 
 class CommandMessageHandler:
@@ -77,7 +78,7 @@ class ExecuteCommandMessageHandler(CommandMessageHandler):
         debug_util.debug_msg('executing: ' + source_code + '\n')
         output, error = kernel_.execute(source_code)
         debug_util.debug_msg('executing done!')
-        kernel_.write_message(CommandMessage.ExecuteResponseMessage(id_, output, error))
+        kernel_.write_message(ExecuteResponseMessage(id_, output, error))
 
 
 class PutFlowVariablesCommandMessageHandler(CommandMessageHandler):

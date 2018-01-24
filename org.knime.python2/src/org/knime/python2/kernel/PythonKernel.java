@@ -1079,6 +1079,7 @@ public class PythonKernel implements AutoCloseable {
                         }
                     } catch (final Throwable t) {
                     }
+                    m_commands.stopMessageLoop();
                     try {
                         m_serverSocket.close();
                     } catch (final Throwable t) {

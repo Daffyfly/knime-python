@@ -65,4 +65,4 @@ class PayloadHandler:
     def _read_bytes(self, size):
         start_pointer = self._pointer
         self._pointer += size
-        return self._payload[start_pointer, self._pointer]
+        return self._payload[start_pointer:self._pointer]
