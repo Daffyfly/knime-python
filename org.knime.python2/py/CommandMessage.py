@@ -45,6 +45,22 @@ import struct
 #  may freely choose the license terms applicable to such Node, including
 #  when such Node is propagated with or for interoperation with KNIME.
 # ------------------------------------------------------------------------
+import threading
+
+
+_message_id = 0
+_message_id_lock = threading.Lock()
+
+
+def next_message_id():
+    global _message_id
+    try:
+        _message_id_lock.acquire()
+        message_id = _message_id
+        _message_id += 1
+        return message_id
+    finally:
+        _message_id_lock.release()
 
 
 # Used for defining messages that can be sent to Java
@@ -103,14 +119,20 @@ class SuccessMessage(CommandMessage):
 # Used for requesting a serializer from java. The value may either be the
 # python type that is to be serialized or the extension id
 class SerializerRequest(CommandMessage):
-    def __init__(self, id_, val):
-        CommandMessage.__init__(self, '@id=' + str(id_) + '@command=serializer_request@request=true', val)
+    def __init__(self, val):
+        payload_builder = PayloadBuilder.PayloadBuilder()
+        payload_builder.add_string(val)
+        CommandMessage.__init__(self, '@id=' + str(next_message_id()) + '@command=serializer_request@request=true',
+                                payload_builder.get_payload())
 
 
 # Used for requesting a deserializer from java. The value should be the extension id.       
 class DeserializerRequest(CommandMessage):
-    def __init__(self, id_, val):
-        CommandMessage.__init__(self, '@id=' + str(id_) + '@command=deserializer_request@request=true', val)
+    def __init__(self, val):
+        payload_builder = PayloadBuilder.PayloadBuilder()
+        payload_builder.add_string(val)
+        CommandMessage.__init__(self, '@id=' + str(next_message_id()) + '@command=deserializer_request@request=true',
+                                payload_builder.get_payload())
 
 
 class ExecuteResponseMessage(CommandMessage):
