@@ -42,62 +42,38 @@
 #  may freely choose the license terms applicable to such Node, including
 #  when such Node is propagated with or for interoperation with KNIME.
 # ------------------------------------------------------------------------
-from concurrent import futures
-import CommandMessageHandler
 import threading
-import os
 
 
-class MessageHandler:
-
-    def __init__(self, kernel, number_threads=None):
-        if number_threads is None:
-            number_threads = os.cpu_count() * 2
-        self._kernel = kernel
-        self._pool = futures.ThreadPoolExecutor(number_threads)
-        self._waiting_for_answers = dict()
-        self._waiting_for_answers_lock = threading.Lock()
-
-    def main_loop(self):
-        while 1:
-            message = self._kernel.read_message()
-            message_id = message.get_id()
-            self._waiting_for_answers_lock.acquire()
-            in_waiting_for_answers = message_id in self._waiting_for_answers
-            if in_waiting_for_answers:
-                self._waiting_for_answers[message_id].set_answer(message)
-            self._waiting_for_answers_lock.release()
-            if not in_waiting_for_answers:
-                handler = CommandMessageHandler.get_command_message_handler(message)
-                self._pool.submit(handler.execute, self._kernel)
-
-    def send_message(self, message):
-        answer = None
-        if message.is_data_request():
-            self._waiting_for_answers_lock.acquire()
-            answer = AnswerFuture()
-            self._waiting_for_answers[message.get_id()] = answer
-            self._waiting_for_answers_lock.release()
-        self._kernel.write_message(message)
-        return answer
-
-
-class AnswerFuture:
+class ReadWriteLock:
 
     def __init__(self):
-        self._answer_message = None
-        self._condition = threading.Condition()
+        self._lock = threading.Condition()
+        self._readers = 0
+        self._writer = False
 
-    def set_answer(self, message):
-        self._condition.acquire()
-        self._answer_message = message
-        self._condition.notify()
-        self._condition.release()
+    def acquire_read(self):
+        self._lock.acquire()
+        while self._writer:
+            self._lock.wait()
+        self._readers += 1
+        self._lock.release()
 
-    def get_answer(self):
-        self._condition.acquire()
-        while self._answer_message is None:
-            self._condition.wait()
-        answer = self._answer_message
-        self._condition.release()
-        return answer
+    def release_read(self):
+        self._lock.acquire()
+        self._readers -= 1
+        self._lock.notify_all()
+        self._lock.release()
+
+    def acquire_write(self):
+        self._lock.acquire()
+        while self._writer or self._readers > 0:
+            self._lock().wait()
+        self._writer = True
+        self._lock.release()
+
+    def release_write(self):
+        self._lock.acquire()
+        self._writer = False
+        self._lock.notify_all()
+        self._lock.release()

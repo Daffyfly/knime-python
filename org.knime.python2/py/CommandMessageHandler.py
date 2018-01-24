@@ -351,7 +351,7 @@ class PutSqlCommandMessageHandler(CommandMessageHandler):
         data_bytes = payload_handler.read_bytearray()
         data_frame = kernel_.bytes_to_data_frame(data_bytes)
         db_util = DBUtil(data_frame)
-        kernel_._exec_env[name] = db_util
+        kernel_.put_variable(name, db_util)
         kernel_._cleanup_object_names.append(name)
         kernel_.send_message(SuccessMessage(self.get_command_message().get_id()))
 
