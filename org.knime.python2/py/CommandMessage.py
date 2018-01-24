@@ -1,8 +1,4 @@
 # -*- coding: utf-8 -*-
-from pandas.core.dtypes.missing import isnull
-import PayloadBuilder
-import struct
-
 # ------------------------------------------------------------------------
 #  Copyright by KNIME AG, Zurich, Switzerland
 #  Website: http://www.knime.com; Email: contact@knime.com
@@ -45,6 +41,9 @@ import struct
 #  may freely choose the license terms applicable to such Node, including
 #  when such Node is propagated with or for interoperation with KNIME.
 # ------------------------------------------------------------------------
+from pandas.core.dtypes.missing import isnull
+import PayloadBuilder
+import struct
 import threading
 
 

@@ -68,7 +68,7 @@ class ReadWriteLock:
     def acquire_write(self):
         self._lock.acquire()
         while self._writer or self._readers > 0:
-            self._lock().wait()
+            self._lock.wait()
         self._writer = True
         self._lock.release()
 

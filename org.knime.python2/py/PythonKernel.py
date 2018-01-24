@@ -45,8 +45,9 @@
 
 import sys
 _python3 = sys.version_info >= (3, 0)
-# if not _python3:
-#    sys.setdefaultencoding('utf-8')
+if not _python3:
+    reload(sys)
+    sys.setdefaultencoding('utf-8')
 import math
 import socket
 import struct
@@ -346,7 +347,7 @@ class PythonKernel(Borg):
         
         # Get the TypeExtensionManager instance
         self._type_extension_manager = TypeExtensionManager(self.send_message)
-        
+
         if sys.getdefaultencoding() != 'utf-8':
             warnings.warn('Your default encoding is not "utf-8". You may experience errors with non ascii characters!')
         

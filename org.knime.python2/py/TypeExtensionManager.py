@@ -44,6 +44,7 @@
 # ------------------------------------------------------------------------
 
 from CommandMessage import *
+from PayloadHandler import *
 import types
 import os
 import sys
@@ -57,7 +58,7 @@ if _python3:
     import importlib
 else:
     import imp
-from PayloadHandler import *
+
 
 # Used for managing all registered serializers and deserializers.
 # Serializers and deserializers can be accessed using the identifier,
@@ -65,9 +66,9 @@ from PayloadHandler import *
 # to the python type. This type string is set in the extension point's specification
 # in plugin.xml.
 class TypeExtensionManager(Borg):
-    def __init__(self, writeResponseFn):
+    def __init__(self, write_response_fn):
         Borg.__init__(self)
-        self._writeResponseFn = writeResponseFn
+        self._writeResponseFn = write_response_fn
         self._serializer_id_to_index = {}
         self._serializer_type_to_id = {}
         self._serializers = []
@@ -103,7 +104,7 @@ class TypeExtensionManager(Borg):
     # @return java extension point id (string)
     def get_serializer_id_by_type(self, type_string):
         if type_string not in self._serializer_type_to_id:
-            if self.request_serializer(type_string) == None:
+            if self.request_serializer(type_string) is None:
                 return None
         return self._serializer_type_to_id[type_string]
 
@@ -135,8 +136,8 @@ class TypeExtensionManager(Borg):
     # Request a serializer for the requested python type or extension id from the
     # extension manager on java side.
     # @param typeOrId either the python type string or the extension id
-    def request_serializer(self, typeOrId):
-        answer = self._writeResponseFn(SerializerRequest(typeOrId)).get_answer()
+    def request_serializer(self, type_or_id):
+        answer = self._writeResponseFn(SerializerRequest(type_or_id)).get_answer()
         payload_handler = PayloadHandler(answer.get_payload())
         res = list()
         res.append(payload_handler.read_string())
@@ -144,15 +145,16 @@ class TypeExtensionManager(Borg):
         res.append(payload_handler.read_string())
         # No serializer was found for request
         if res[0] == '' or res[1] == '':
-            raise LookupError('No serializer extension having the id or processing python type "' + typeOrId + '" could be found.')
+            raise LookupError('No serializer extension having the id or processing python type "' + type_or_id
+                              + '" could be found.')
         self.add_serializer(res[0], res[1], res[2])
         return len(self._serializers) - 1
     
     # Request a deserializer for the requested extension id from the
     # extension manager on java side
     # @param id the extension id
-    def request_deserializer(self, id):
-        answer = self._writeResponseFn(DeserializerRequest(id)).get_answer()
+    def request_deserializer(self, id_):
+        answer = self._writeResponseFn(DeserializerRequest(id_)).get_answer()
         payload_handler = PayloadHandler(answer.get_payload())
         res = list()
         res.append(payload_handler.read_string())
@@ -160,7 +162,7 @@ class TypeExtensionManager(Borg):
         # No serializer was found for request
         if res[0] == '' or res[1] == '':
             raise LookupError('No deserializer extension having the id "' + typeOrId + '" could be found.')
-        #debug_util.breakpoint()
+        # debug_util.breakpoint()
         self.add_deserializer(res[0], res[1])
         return len(self._deserializers) - 1
 

@@ -43,10 +43,8 @@
 #  when such Node is propagated with or for interoperation with KNIME.
 # ------------------------------------------------------------------------
 
+
 import sys
-_python3 = sys.version_info >= (3, 0)
-# if not _python3:
-#    sys.setdefaultencoding('utf-8')
 import PayloadHandler
 from CommandMessage import *
 import debug_util
@@ -418,6 +416,6 @@ _command_message_handlers = {'execute': ExecuteCommandMessageHandler,
 
 def get_command_message_handler(command_message):
     if not command_message.get_command() in _command_message_handlers:
-       raise LookupError('The command ' + command_message.get_command() + ' was received but it cannot be handled by'
-                                                                          ' the Python Kernel.')
+        raise LookupError('The command ' + command_message.get_command() + ' was received but it cannot be handled by'
+                                                                           ' the Python Kernel.')
     return _command_message_handlers[command_message.get_command()](command_message)
