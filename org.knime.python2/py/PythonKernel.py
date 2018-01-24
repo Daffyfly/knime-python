@@ -47,7 +47,6 @@ import sys
 _python3 = sys.version_info >= (3, 0)
 if not _python3:
     sys.setdefaultencoding('utf-8')
-    import site
 import math
 import socket
 import struct
@@ -55,9 +54,6 @@ import base64
 import traceback
 import numpy
 import os
-import pickle
-import types
-import collections
 from datetime import datetime
 from pandas import DataFrame, Index
 from DBUtil import *
@@ -65,6 +61,7 @@ from CommandMessage import *
 from TypeExtensionManager import *
 from Borg import Borg
 from CommandMessageHandler import *
+from MessageHandler import *
 
 # suppress FutureWarnings
 import warnings
@@ -332,7 +329,7 @@ class PythonKernel(Borg):
     
     def __init__(self):
         # global variables in the execution environment
-        self._exec_env = {'request_from_java': self.write_message}
+        self._exec_env = {'request_from_java': self.send_message}
         # TCP connection
         self._connection = None
         self._cleanup_object_names = []
@@ -341,7 +338,7 @@ class PythonKernel(Borg):
         self._serializer = None
         
         # Get the TypeExtensionManager instance
-        self._type_extension_manager = TypeExtensionManager(self.write_message)
+        self._type_extension_manager = TypeExtensionManager(self.send_message)
         
         if sys.getdefaultencoding() != 'utf-8':
             warnings.warn('Your default encoding is not "utf-8". You may experience errors with non ascii characters!')
@@ -372,8 +369,8 @@ class PythonKernel(Borg):
         
         # First send PID of this process (so it can reliably be killed later)
         try:
-            while 1:
-                self.run_command(self.read_message())
+            self._message_handler = MessageHandler(self)
+            self._message_handler.main_loop()
         finally:
             self._cleanup()
 
@@ -475,7 +472,6 @@ class PythonKernel(Borg):
             sys.stderr = backup_std_error
         
         sys.stdout = backup_std_out
-        #self.write_message(SuccessMessage())
         return [output.getvalue(), error.getvalue()]
 
 
@@ -785,66 +781,60 @@ class PythonKernel(Borg):
                 else:
                     data_frame.iat[i, col_idx] = None
 
+    def send_message(self, message):
+        return self._message_handler.send_message(message)
+
     # reads 4 bytes from the input stream and interprets them as size
-    def read_size(self):
+    def _read_size(self):
         data = bytearray()
         while len(data) < 4:
             data.extend(self._connection.recv(4-len(data)))
         return struct.unpack('>L', data)[0]
 
     # read the next data from the input stream
-    def read_data(self, size=None):
+    def _read_data(self, size=None):
         if size is None:
-            size = self.read_size()
+            size = self._read_size()
         data = bytearray()
         while len(data) < size:
             data.extend(self._connection.recv(size-len(data)))
         return data
 
+    def read_message(self):
+        header_size = self._read_size()
+        payload_size = self._read_size()
+        header = self._read_data(header_size).decode('utf-8')
+        if payload_size > 0:
+            payload = self._read_data(payload_size)
+        else:
+            payload = None
+        return CommandMessage(header, payload)
+
     # writes the given size as 4 byte integer to the output stream
-    def write_size(self, size):
+    def _write_size(self, size):
         writer = self._connection.makefile('wb', 4)
         writer.write(struct.pack('>L', size))
         writer.flush()
         # _connection.sendall(struct.pack('>L', size))
 
     # writes the given data to the output stream
-    def write_data(self, data):
-        #self.write_size(len(data))
+    def _write_data(self, data):
         self._connection.sendall(data)
-
-    def read_string(self):
-        try:
-            return self.read_data().decode('utf-8')
-        except UnicodeDecodeError:
-            raise UnicodeError("Received string from java that is not utf8-encoded!")
-        except:
-            raise
 
     def write_message(self, msg):
         if not issubclass(type(msg), CommandMessage):
             raise TypeError("write_message was called with an object of a type not inheriting CommandMessage!")
         header = msg.get_header().encode('utf-8')
         payload = msg.get_payload()
-        # debug_util.breakpoint()
-        self.write_size(len(header))
+        #debug_util.breakpoint()
+        self._write_size(len(header))
         if payload:
-            self.write_size(len(payload))
+            self._write_size(len(payload))
         else:
-            self.write_size(0)
-        self.write_data(header)
+            self._write_size(0)
+        self._write_data(header)
         if payload:
-            self.write_data(payload)
-
-    def read_message(self):
-        header_size = self.read_size()
-        payload_size = self.read_size()
-        header = self.read_data(header_size).decode('utf-8')
-        if payload_size > 0:
-            payload = self.read_data(payload_size)
-        else:
-            payload = None
-        return CommandMessage(header, payload)
+            self._write_data(payload)
 
     # Get the {@link Simpletype} of a column in the passed dataframe and the serializer_id
     # if available (only interesting for extension types that are transferred as bytes).
