@@ -48,7 +48,7 @@ import struct
 import threading
 
 
-_message_id = 0
+_message_id = -1
 _message_id_lock = threading.Lock()
 
 
@@ -57,7 +57,7 @@ def next_message_id():
     try:
         _message_id_lock.acquire()
         message_id = _message_id
-        _message_id += 1
+        _message_id -= 1
         return message_id
     finally:
         _message_id_lock.release()
