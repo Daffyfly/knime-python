@@ -815,7 +815,6 @@ class PythonKernel(Borg):
                 payload = self._read_data(payload_size)
             else:
                 payload = None
-            self._lock_read.release()
             return CommandMessage(header, payload)
         finally:
             self._lock_read.release()
