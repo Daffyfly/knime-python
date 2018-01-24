@@ -124,6 +124,7 @@ import org.knime.python2.extensions.serializationlibrary.interfaces.impl.TableSp
 import org.knime.python2.extensions.serializationlibrary.interfaces.impl.TemporaryTableCreator;
 import org.knime.python2.generic.ImageContainer;
 import org.knime.python2.generic.ScriptingNodeUtils;
+import org.knime.python2.kernel.CommandMessage.PayloadEncoder;
 import org.knime.python2.port.PickledObject;
 import org.w3c.dom.svg.SVGDocument;
 
@@ -368,16 +369,23 @@ public class PythonKernel implements AutoCloseable {
                 for (PythonToKnimeExtension ext : PythonToKnimeExtensions.getExtensions()) {
                     String payload = new String(msg.getPayload(), StandardCharsets.UTF_8);
                     if (ext.getType().contentEquals(payload) || ext.getId().contentEquals(payload)) {
+                        PayloadEncoder enc = new PayloadEncoder();
+                        enc.putString(ext.getId());
+                        enc.putString(ext.getType());
+                        enc.putString(ext.getPythonSerializerPath());
                         messages.answer(msg, new CommandMessage(msg.getId(), msg.getCommand() + "_response",
-                            (ext.getId() + ";" + ext.getType() + ";" +
-                             ext.getPythonSerializerPath()).getBytes(StandardCharsets.UTF_8), false,
+                            enc.get(), false,
                             Optional.empty()));
                         return;
                     }
                 }
+                PayloadEncoder enc = new PayloadEncoder();
+                enc.putString("");
+                enc.putString("");
+                enc.putString("");
                 messages.answer(msg, new CommandMessage(msg.getId(),
                     msg.getCommand() + "_response",
-                    ";;".getBytes(StandardCharsets.UTF_8), false, Optional.empty()));
+                    enc.get(), false, Optional.empty()));
             }
         });
 
@@ -387,17 +395,21 @@ public class PythonKernel implements AutoCloseable {
             protected void handle(final CommandMessage msg) throws Exception {
                 for (KnimeToPythonExtension ext : KnimeToPythonExtensions.getExtensions()) {
                     if (ext.getId().contentEquals(new String(msg.getPayload(),StandardCharsets.UTF_8))) {
+                        PayloadEncoder enc = new PayloadEncoder();
+                        enc.putString(ext.getId());
+                        enc.putString(ext.getPythonDeserializerPath());
                         messages.answer(msg,
                             new CommandMessage(msg.getId(), msg.getCommand() + "_response",
-                                (ext.getId() + ";" + ext.getPythonDeserializerPath()).getBytes(StandardCharsets.UTF_8),
-                                false, Optional.empty()));
+                                enc.get(), false, Optional.empty()));
                         return;
                     }
                 }
+                PayloadEncoder enc = new PayloadEncoder();
+                enc.putString("");
+                enc.putString("");
                 messages.answer(msg,
                     new CommandMessage(msg.getId(), msg.getCommand() + "_response",
-                        ";".getBytes(StandardCharsets.UTF_8),
-                        false, Optional.empty()));
+                        enc.get(), false, Optional.empty()));
             }
         });
         try {
