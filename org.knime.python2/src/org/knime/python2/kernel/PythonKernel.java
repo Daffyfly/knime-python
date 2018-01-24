@@ -859,15 +859,19 @@ public class PythonKernel implements AutoCloseable {
     public ImageContainer getImage(final String name) throws IOException {
         try {
             final byte[] bytes = m_commands.getImage(name).get();
-            final String string = new String(bytes, "UTF-8");
-            if (string.startsWith("<?xml")) {
-                try {
-                    return new ImageContainer(stringToSVG(string));
-                } catch (final TranscoderException e) {
-                    throw new IOException(e.getMessage(), e);
+            if(bytes != null) {
+                final String string = new String(bytes, "UTF-8");
+                if (string.startsWith("<?xml")) {
+                    try {
+                        return new ImageContainer(stringToSVG(string));
+                    } catch (final TranscoderException e) {
+                        throw new IOException(e.getMessage(), e);
+                    }
+                } else {
+                    return new ImageContainer(ImageIO.read(new ByteArrayInputStream(bytes)));
                 }
             } else {
-                return new ImageContainer(ImageIO.read(new ByteArrayInputStream(bytes)));
+                return null;
             }
         } catch (final EOFException | InterruptedException | ExecutionException ex) {
             throw getMostSpecificPythonKernelException(ex);
