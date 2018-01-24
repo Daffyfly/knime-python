@@ -179,8 +179,8 @@ class GetTableChunkCommandMessageHandler(CommandMessageHandler):
         debug_util.debug_msg('getTableChunk\n')
         payload_handler = self.get_payload_handler()
         name = payload_handler.read_string()
-        start = payload_handler.read_integer()
-        end = payload_handler.read_integer()
+        start = payload_handler.read_int()
+        end = payload_handler.read_int()
         data_frame = kernel_.get_variable(name)
         if type(data_frame) != pandas.core.frame.DataFrame:
             raise TypeError("Expected pandas.DataFrame, got: " + str(type(data_frame)) + "\nPlease make sure your"
@@ -237,8 +237,8 @@ class AutoCompleteCommandMessageHandler(CommandMessageHandler):
     def execute(self, kernel_):
         payload_handler = self.get_payload_handler()
         source_code = payload_handler.read_string()
-        line = payload_handler.read_integer()
-        column = payload_handler.read_integer()
+        line = payload_handler.read_int()
+        column = payload_handler.read_int()
         suggestions = kernel_.auto_complete(source_code, line, column)
         data_frame = DataFrame(suggestions)
         data_bytes = kernel_.data_frame_to_bytes(data_frame)
