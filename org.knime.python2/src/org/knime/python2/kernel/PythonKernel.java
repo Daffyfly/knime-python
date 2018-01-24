@@ -58,7 +58,6 @@ import java.io.StringReader;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -124,6 +123,7 @@ import org.knime.python2.extensions.serializationlibrary.interfaces.impl.TableSp
 import org.knime.python2.extensions.serializationlibrary.interfaces.impl.TemporaryTableCreator;
 import org.knime.python2.generic.ImageContainer;
 import org.knime.python2.generic.ScriptingNodeUtils;
+import org.knime.python2.kernel.CommandMessage.PayloadDecoder;
 import org.knime.python2.kernel.CommandMessage.PayloadEncoder;
 import org.knime.python2.port.PickledObject;
 import org.w3c.dom.svg.SVGDocument;
@@ -366,8 +366,10 @@ public class PythonKernel implements AutoCloseable {
 
             @Override
             protected void handle(final CommandMessage msg) throws Exception {
+                PayloadDecoder dec = new PayloadDecoder(msg.getPayload());
+                String payload = dec.nextString();
                 for (PythonToKnimeExtension ext : PythonToKnimeExtensions.getExtensions()) {
-                    String payload = new String(msg.getPayload(), StandardCharsets.UTF_8);
+
                     if (ext.getType().contentEquals(payload) || ext.getId().contentEquals(payload)) {
                         PayloadEncoder enc = new PayloadEncoder();
                         enc.putString(ext.getId());
@@ -393,8 +395,10 @@ public class PythonKernel implements AutoCloseable {
 
             @Override
             protected void handle(final CommandMessage msg) throws Exception {
+                PayloadDecoder dec = new PayloadDecoder(msg.getPayload());
+                String payload = dec.nextString();
                 for (KnimeToPythonExtension ext : KnimeToPythonExtensions.getExtensions()) {
-                    if (ext.getId().contentEquals(new String(msg.getPayload(),StandardCharsets.UTF_8))) {
+                    if (ext.getId().contentEquals(payload)) {
                         PayloadEncoder enc = new PayloadEncoder();
                         enc.putString(ext.getId());
                         enc.putString(ext.getPythonDeserializerPath());
