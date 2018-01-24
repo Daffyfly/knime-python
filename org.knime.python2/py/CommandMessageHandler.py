@@ -43,13 +43,17 @@
 #  when such Node is propagated with or for interoperation with KNIME.
 # ------------------------------------------------------------------------
 
+import sys
+_python3 = sys.version_info >= (3, 0)
+if not _python3:
+    sys.setdefaultencoding('utf-8')
 import PayloadHandler
 from CommandMessage import *
 import debug_util
 import os
 import pandas
 import collections
-import sys
+import pickle
 
 
 class CommandMessageHandler:
@@ -279,7 +283,7 @@ class GetObjectCommandMessageHandler(CommandMessageHandler):
         o_bytes = bytearray(pickle.dumps(data_object))
         o_type = type(data_object).__name__
         o_representation = kernel_.object_to_string(data_object)
-        data_frame = DataFrame([{'bytes': o_bytes, 'type': o_type, 'representation': o_representation}])
+        data_frame = pandas.DataFrame([{'bytes': o_bytes, 'type': o_type, 'representation': o_representation}])
         data_bytes = kernel_.data_frame_to_bytes(data_frame)
         id_ = self.get_command_message().get_id()
         kernel_.send_message(GenericBytesMessage(id_, 'GetObject_response', data_bytes))

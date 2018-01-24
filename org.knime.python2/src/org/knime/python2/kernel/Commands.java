@@ -603,8 +603,12 @@ public class Commands {
 
                 @Override
                 public byte[] apply(final CommandMessage msg) {
-                    PayloadDecoder dec = new PayloadDecoder(msg.getPayload());
-                    return dec.nextBytes();
+                    if(msg.getPayload().length > 0) {
+                        PayloadDecoder dec = new PayloadDecoder(msg.getPayload());
+                        return dec.nextBytes();
+                    } else {
+                        return null;
+                    }
                 }});
             sendMessage(msg);
             return result;
