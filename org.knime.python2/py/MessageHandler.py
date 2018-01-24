@@ -45,6 +45,7 @@
 from concurrent import futures
 import CommandMessageHandler
 import threading
+import os
 
 
 class MessageHandler:
@@ -60,8 +61,8 @@ class MessageHandler:
     def main_loop(self):
         while 1:
             message = self._kernel.read_message()
-            message_id = new_message.get_id()
-            self._waiting_for_answers_lock.aquire()
+            message_id = message.get_id()
+            self._waiting_for_answers_lock.acquire()
             in_waiting_for_answers = message_id in self._waiting_for_answers
             if in_waiting_for_answers:
                 self._waiting_for_answers[message_id].set_answer(message)
@@ -74,7 +75,7 @@ class MessageHandler:
     def send_message(self, message):
         answer = None
         if message.is_data_request():
-            self._waiting_for_answers_lock.aquire()
+            self._waiting_for_answers_lock.acquire()
             answer = AnswerFuture()
             self._waiting_for_answers[message.get_id()] = answer
             self._waiting_for_answers_lock.release()
@@ -89,13 +90,13 @@ class AnswerFuture:
         self._condition = threading.Condition()
 
     def set_answer(self, message):
-        self._condition.aquire()
+        self._condition.acquire()
         self._answer_message = message
         self._condition.notify()
         self._condition.release()
 
     def get_answer(self):
-        self._condition.aquire()
+        self._condition.acquire()
         while self._answer_message is None:
             self._condition.wait()
         answer = self._answer_message
