@@ -103,6 +103,8 @@ public class Commands {
 
     private AtomicBoolean m_msgLoopRunning;
 
+    private AtomicBoolean m_shutdownSent;
+
     private CommandsHandler m_commandsHandler;
 
     /**
@@ -122,6 +124,7 @@ public class Commands {
         //TODO KNIME Threadpool ?
         m_executor = Executors.newSingleThreadExecutor();
         m_msgLoopRunning = new AtomicBoolean(true);
+        m_shutdownSent = new AtomicBoolean(false);
         m_commandsHandler = new CommandsHandler();
         m_messages.registerMessageHandler(m_commandsHandler);
         m_executor.execute(new Runnable() {
@@ -133,7 +136,7 @@ public class Commands {
                         CommandMessage msg = m_messages.readMessage();
                         m_messages.handleMessage(msg);
                     } catch (IOException ex) {
-                        if(m_msgLoopRunning.get()) {
+                        if(m_msgLoopRunning.get() && !m_shutdownSent.get()) {
                             LOGGER.warn("Could not read messge, cause: " + ex.getMessage());
                             break;
                         }
@@ -251,7 +254,7 @@ public class Commands {
     }
 
     private Future<Boolean> addSuccessListener(final CommandMessage msg) {
-        return m_commandsHandler.registerResponse(msg, new Function<CommandMessage, Boolean>(){
+        return m_messages.registerSuccessResponse(msg, new Function<CommandMessage, Boolean>(){
 
             @Override
             public Boolean apply(final CommandMessage t) {
@@ -301,7 +304,8 @@ public class Commands {
 
                 @Override
                 public byte[] apply(final CommandMessage msg) {
-                    return msg.getPayload();
+                    PayloadDecoder dec = new PayloadDecoder(msg.getPayload());
+                    return dec.nextBytes();
                 }});
             sendMessage(msg);
             return result;
@@ -418,7 +422,8 @@ public class Commands {
 
                 @Override
                 public byte[] apply(final CommandMessage msg) {
-                    return msg.getPayload();
+                    PayloadDecoder dec = new PayloadDecoder(msg.getPayload());
+                    return dec.nextBytes();
                 }});
             sendMessage(msg);
             return result;
@@ -454,7 +459,8 @@ public class Commands {
 
                 @Override
                 public byte[] apply(final CommandMessage msg) {
-                    return msg.getPayload();
+                    PayloadDecoder dec = new PayloadDecoder(msg.getPayload());
+                    return dec.nextBytes();
                 }});
             sendMessage(msg);
             return result;
@@ -485,7 +491,8 @@ public class Commands {
 
                 @Override
                 public byte[] apply(final CommandMessage msg) {
-                    return msg.getPayload();
+                    PayloadDecoder dec = new PayloadDecoder(msg.getPayload());
+                    return dec.nextBytes();
                 }});
             sendMessage(msg);
             return result;
@@ -596,7 +603,8 @@ public class Commands {
 
                 @Override
                 public byte[] apply(final CommandMessage msg) {
-                    return msg.getPayload();
+                    PayloadDecoder dec = new PayloadDecoder(msg.getPayload());
+                    return dec.nextBytes();
                 }});
             sendMessage(msg);
             return result;
@@ -627,7 +635,8 @@ public class Commands {
 
                 @Override
                 public byte[] apply(final CommandMessage msg) {
-                    return msg.getPayload();
+                    PayloadDecoder dec = new PayloadDecoder(msg.getPayload());
+                    return dec.nextBytes();
                 }});
             sendMessage(msg);
             return result;
@@ -750,6 +759,7 @@ public class Commands {
              int id = m_msgIdCtr++;
              CommandMessage msg = new CommandMessage(id, "shutdown", null, true, Optional.empty());
              Future<Boolean> result = addSuccessListener(msg);
+             m_shutdownSent.set(true);
              sendMessage(msg);
              return result;
          }finally{
@@ -803,7 +813,8 @@ public class Commands {
 
                 @Override
                 public String apply(final CommandMessage msg) {
-                    return new String(msg.getPayload(), StandardCharsets.UTF_8);
+                    PayloadDecoder dec = new PayloadDecoder(msg.getPayload());
+                    return dec.nextString();
                 }});
             sendMessage(msg);
             return result;
@@ -969,14 +980,21 @@ public class Commands {
 
         private static final String RESPONSE_SUFFIX = "_response";
 
-        private static final PythonToJavaMessageHandler SUCCESS_HANDLER =
-            new AbstractPythonToJavaMessageHandler(SUCCESS_COMMAND) {
+        /**
+         * Handles all success messages. Redirects them if a callback is registered.
+         */
+        private static final CommandsHandler SUCCESS_HANDLER =
+            new CommandsHandler(){
 
-                @Override
-                protected void handle(final CommandMessage msg) {
-                    // no op
+            @Override
+            public boolean tryHandle(final CommandMessage msg) throws Exception {
+                if(msg.getCommand().contentEquals(SUCCESS_COMMAND)) {
+                    super.tryHandle(msg);
+                    return true;
                 }
-            };
+                return false;
+            }
+        };
 
         private final Commands m_commands;
 
@@ -986,7 +1004,11 @@ public class Commands {
 
         public CommandsMessages(final Commands commands) {
             m_commands = commands;
-            //registerMessageHandler(SUCCESS_HANDLER);
+            registerMessageHandler(SUCCESS_HANDLER);
+        }
+
+        public <T> Future<T> registerSuccessResponse(final CommandMessage msg, final Function<CommandMessage,T> response) {
+            return SUCCESS_HANDLER.registerResponse(msg,response);
         }
 
         @Override
@@ -1064,7 +1086,7 @@ public class Commands {
             if (!handled) {
                 throw new IllegalStateException("Python message was not handled. Command: " + msg.getCommand());
             }
-            if (m_unansweredRequests.peek() == msg) {
+            if (m_unansweredRequests.contains(msg)) {
                 throw new IllegalStateException(
                     "Python request message was not answered. Command: " + msg.getCommand());
             }
@@ -1086,7 +1108,7 @@ public class Commands {
         }
     }
 
-    private class CommandsHandler implements PythonToJavaMessageHandler {
+    static class CommandsHandler implements PythonToJavaMessageHandler {
 
         private final HashMap<Integer, ResponseTask<?>> m_responseMap = new HashMap<Integer, ResponseTask<?>>();
 

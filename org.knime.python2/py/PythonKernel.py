@@ -826,7 +826,7 @@ class PythonKernel(Borg):
             raise TypeError("write_message was called with an object of a type not inheriting CommandMessage!")
         header = msg.get_header().encode('utf-8')
         payload = msg.get_payload()
-        # debug_util.breakpoint()
+        #debug_util.breakpoint()
         self.write_size(len(header))
         if payload:
             self.write_size(len(payload))
