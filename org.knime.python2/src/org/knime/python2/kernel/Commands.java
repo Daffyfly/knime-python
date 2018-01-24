@@ -987,7 +987,7 @@ public class Commands {
         /**
          * Handles all success messages. Redirects them if a callback is registered.
          */
-        private static final CommandsHandler SUCCESS_HANDLER =
+        private final CommandsHandler m_successHandler =
             new CommandsHandler(){
 
             @Override
@@ -1008,11 +1008,11 @@ public class Commands {
 
         public CommandsMessages(final Commands commands) {
             m_commands = commands;
-            registerMessageHandler(SUCCESS_HANDLER);
+            registerMessageHandler(m_successHandler);
         }
 
         public <T> Future<T> registerSuccessResponse(final CommandMessage msg, final Function<CommandMessage,T> response) {
-            return SUCCESS_HANDLER.registerResponse(msg,response);
+            return m_successHandler.registerResponse(msg,response);
         }
 
         @Override
