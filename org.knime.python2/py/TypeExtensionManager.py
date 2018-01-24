@@ -57,6 +57,7 @@ if _python3:
     import importlib
 else:
     import imp
+from PayloadHandler import *
 
 # Used for managing all registered serializers and deserializers.
 # Serializers and deserializers can be accessed using the identifier,
@@ -135,7 +136,12 @@ class TypeExtensionManager(Borg):
     # extension manager on java side.
     # @param typeOrId either the python type string or the extension id
     def request_serializer(self, typeOrId):
-        res = self._writeResponseFn(SerializerRequest(typeOrId))
+        answer = self._writeResponseFn(SerializerRequest(typeOrId)).get_answer()
+        payload_handler = PayloadHandler(answer.get_payload())
+        res = list()
+        res.append(payload_handler.read_string())
+        res.append(payload_handler.read_string())
+        res.append(payload_handler.read_string())
         # No serializer was found for request
         if res == None:
             raise LookupError('No serializer extension having the id or processing python type "' + typeOrId + '" could be found.')
@@ -146,7 +152,11 @@ class TypeExtensionManager(Borg):
     # extension manager on java side
     # @param id the extension id
     def request_deserializer(self, id):
-        res = self._writeResponseFn(DeserializerRequest(id))
+        answer = self._writeResponseFn(DeserializerRequest(id)).get_answer()
+        payload_handler = PayloadHandler(answer.get_payload())
+        res = list()
+        res.append(payload_handler.read_string())
+        res.append(payload_handler.read_string())
         # No serializer was found for request
         if res == None:
             raise LookupError('No deserializer extension having the id "' + typeOrId + '" could be found.')

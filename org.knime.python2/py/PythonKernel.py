@@ -62,6 +62,7 @@ from TypeExtensionManager import *
 from Borg import Borg
 from CommandMessageHandler import *
 from MessageHandler import *
+import threading
 
 # suppress FutureWarnings
 import warnings
@@ -328,6 +329,10 @@ class Simpletype:
 class PythonKernel(Borg):
     
     def __init__(self):
+        # Locks
+        self._lock_read = threading.Lock()
+        self._lock_write = threading.Lock()
+
         # global variables in the execution environment
         self._exec_env = {'request_from_java': self.send_message}
         # TCP connection
@@ -801,14 +806,19 @@ class PythonKernel(Borg):
         return data
 
     def read_message(self):
-        header_size = self._read_size()
-        payload_size = self._read_size()
-        header = self._read_data(header_size).decode('utf-8')
-        if payload_size > 0:
-            payload = self._read_data(payload_size)
-        else:
-            payload = None
-        return CommandMessage(header, payload)
+        try:
+            self._lock_read.acquire()
+            header_size = self._read_size()
+            payload_size = self._read_size()
+            header = self._read_data(header_size).decode('utf-8')
+            if payload_size > 0:
+                payload = self._read_data(payload_size)
+            else:
+                payload = None
+            self._lock_read.release()
+            return CommandMessage(header, payload)
+        finally:
+            self._lock_read.release()
 
     # writes the given size as 4 byte integer to the output stream
     def _write_size(self, size):
@@ -822,19 +832,23 @@ class PythonKernel(Borg):
         self._connection.sendall(data)
 
     def write_message(self, msg):
-        if not issubclass(type(msg), CommandMessage):
-            raise TypeError("write_message was called with an object of a type not inheriting CommandMessage!")
-        header = msg.get_header().encode('utf-8')
-        payload = msg.get_payload()
-        #debug_util.breakpoint()
-        self._write_size(len(header))
-        if payload:
-            self._write_size(len(payload))
-        else:
-            self._write_size(0)
-        self._write_data(header)
-        if payload:
-            self._write_data(payload)
+        try:
+            self._lock_write.acquire()
+            if not issubclass(type(msg), CommandMessage):
+                raise TypeError("write_message was called with an object of a type not inheriting CommandMessage!")
+            header = msg.get_header().encode('utf-8')
+            payload = msg.get_payload()
+            #debug_util.breakpoint()
+            self._write_size(len(header))
+            if payload:
+                self._write_size(len(payload))
+            else:
+                self._write_size(0)
+            self._write_data(header)
+            if payload:
+                self._write_data(payload)
+        finally:
+            self._lock_write.release()
 
     # Get the {@link Simpletype} of a column in the passed dataframe and the serializer_id
     # if available (only interesting for extension types that are transferred as bytes).
