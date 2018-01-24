@@ -199,7 +199,7 @@ class ListVariablesCommandMessageHandler(CommandMessageHandler):
 
     def execute(self, kernel_):
         variables = kernel_.list_variables()
-        data_frame = DataFrame(variables)
+        data_frame = pandas.DataFrame(variables)
         data_bytes = kernel_.data_frame_to_bytes(data_frame)
         id_ = self.get_command_message().get_id()
         kernel_.send_message(GenericBytesMessage(id_, 'listVariables_response', data_bytes))
