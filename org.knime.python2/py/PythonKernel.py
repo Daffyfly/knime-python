@@ -789,7 +789,7 @@ class PythonKernel(Borg):
     def read_size(self):
         data = bytearray()
         while len(data) < 4:
-            data.extend(self._connection.recv(4))
+            data.extend(self._connection.recv(4-len(data)))
         return struct.unpack('>L', data)[0]
 
     # read the next data from the input stream
@@ -798,7 +798,7 @@ class PythonKernel(Borg):
             size = self.read_size()
         data = bytearray()
         while len(data) < size:
-            data.extend(self._connection.recv(size))
+            data.extend(self._connection.recv(size-len(data)))
         return data
 
     # writes the given size as 4 byte integer to the output stream
@@ -826,7 +826,7 @@ class PythonKernel(Borg):
             raise TypeError("write_message was called with an object of a type not inheriting CommandMessage!")
         header = msg.get_header().encode('utf-8')
         payload = msg.get_payload()
-        debug_util.breakpoint()
+        # debug_util.breakpoint()
         self.write_size(len(header))
         if payload:
             self.write_size(len(payload))
