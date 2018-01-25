@@ -72,9 +72,9 @@ class MessageHandler:
                 if not in_waiting_for_answers:
                     handler = CommandMessageHandler.get_command_message_handler(message)
                     self._pool.submit(handler.execute, self._kernel)
-            exit()
         finally:
-            self.shutdown()
+            self._pool.shutdown()
+            exit()
 
     def send_message(self, message):
         answer = None
@@ -88,7 +88,6 @@ class MessageHandler:
 
     def shutdown(self):
         self._running = False
-        self._pool.shutdown()
 
 
 class AnswerFuture:
