@@ -45,6 +45,10 @@
 
 
 import sys
+_python3 = sys.version_info >= (3, 0)
+if not _python3:
+    reload(sys)
+    sys.setdefaultencoding('utf-8')
 import PayloadHandler
 from CommandMessage import *
 import debug_util
@@ -242,7 +246,7 @@ class AutoCompleteCommandMessageHandler(CommandMessageHandler):
         line = payload_handler.read_int()
         column = payload_handler.read_int()
         suggestions = kernel_.auto_complete(source_code, line, column)
-        data_frame = DataFrame(suggestions)
+        data_frame = pandas.DataFrame(suggestions)
         data_bytes = kernel_.data_frame_to_bytes(data_frame)
         id_ = self.get_command_message().get_id()
         kernel_.send_message(GenericBytesMessage(id_, 'AutoComplete_response', data_bytes))
