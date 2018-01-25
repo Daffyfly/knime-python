@@ -71,8 +71,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -1091,10 +1089,8 @@ public class PythonKernel implements AutoCloseable {
                     try {
                         // Give it some time to finish writing into the stream
                         Thread.sleep(500);
-                        Future<Boolean> succ = m_commands.tryShutdown();
-                        try{
-                            succ.get(1, TimeUnit.SECONDS);
-                        } catch(TimeoutException ex) {
+                        boolean succ = m_commands.tryShutdown();
+                        if(!succ) {
                             LOGGER.debug("Python Kernel could not be shutdown gracefully. Killing process now!");
                         }
                     } catch (final Throwable t) {
@@ -1126,6 +1122,7 @@ public class PythonKernel implements AutoCloseable {
                             }
                             Process p = pb.start();
                             p.waitFor();
+                            m_process.destroy();
                         } catch (final IOException e) {
                             //
                         } catch (InterruptedException ex) {

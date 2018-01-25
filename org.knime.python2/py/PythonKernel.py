@@ -464,6 +464,7 @@ class PythonKernel(Borg):
     def shutdown(self):
         self._cleanup()
         self._message_handler.shutdown()
+        self._connection.close()
 
     # execute the given source code
     def execute(self, source_code):

@@ -1,6 +1,8 @@
 eclipse.preferences.version=1
 encoding//py/CommandMessage.py=utf-8
 encoding//py/CommandMessageHandler.py=utf-8
+encoding//py/MessageHandler.py=utf-8
 encoding//py/PayloadBuilder.py=utf-8
+encoding//py/PayloadHandler.py=utf-8
 encoding//py/PythonKernel.py=utf-8
 encoding//py/TypeExtensionManager.py=utf-8

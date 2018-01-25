@@ -60,7 +60,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -97,7 +97,7 @@ public class Commands {
 
     private int m_msgIdCtr;
 
-    private Executor m_executor;
+    private ExecutorService m_executor;
 
     private NodeLogger LOGGER = NodeLogger.getLogger(Commands.class);
 
@@ -148,6 +148,16 @@ public class Commands {
 
     public void stopMessageLoop() {
         m_msgLoopRunning.set(false);
+        m_executor.shutdown();
+        try {
+            if(!m_executor.awaitTermination(1, TimeUnit.SECONDS)) {
+                m_executor.shutdownNow();
+                //LOGGER.warn("Python message thread could not be shutdown gracefully.");
+            }
+        } catch (InterruptedException ex) {
+            m_executor.shutdownNow();
+            //LOGGER.warn("Python message thread could not be shutdown gracefully.");
+        }
     }
 
     /**
@@ -745,7 +755,7 @@ public class Commands {
      * @throws IOException
      * @throws InterruptedException
      */
-     public Future<Boolean> tryShutdown() throws IOException, InterruptedException {
+     public boolean tryShutdown() throws IOException, InterruptedException {
         /*if (m_lock.tryLock(1, TimeUnit.SECONDS)) {
             try {
                 writeString("shutdown");
@@ -762,10 +772,16 @@ public class Commands {
          try{
              int id = m_msgIdCtr++;
              CommandMessage msg = new CommandMessage(id, "shutdown", null, true, Optional.empty());
-             Future<Boolean> result = addSuccessListener(msg);
              m_shutdownSent.set(true);
              sendMessage(msg);
-             return result;
+             Thread.sleep(1000);
+             //Try to write dummy to verify that stream is closed
+             try{
+                 m_bufferedOutToServer.writeInt(0);
+             } catch(IOException ex) {
+                 return true;
+             }
+             return false;
          }finally{
              m_lock.unlock();
          }
