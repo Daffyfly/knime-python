@@ -91,3 +91,10 @@ The following nodes are available in the "KNIME Jython Integration" plugin:
 
 All nodes and underlying code are contained in the project *org.knime.ext.jython*.
 
+##Daffyfly Fork
+
+This is the Daffyfly fork of knime-python project from knime.
+
+The following node is available:
+* **PythonTableToContext:** send an object containing the variables of current Python instance.
+

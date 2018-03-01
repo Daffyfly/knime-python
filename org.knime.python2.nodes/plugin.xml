@@ -1,42 +1,37 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<?eclipse version="3.4"?>
-
-<plugin>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?eclipse version="3.4"?><plugin>
    	<extension point="org.knime.workbench.repository.nodes">
-   		<node category-path="/scripting/python" factory-class="org.knime.python2.nodes.variables.Python2VariablesNodeFactory" />
-   		<node category-path="/scripting/python" factory-class="org.knime.python2.nodes.source.Python2SourceNodeFactory" after="org.knime.python2.nodes.variables.Python2VariablesNodeFactory"/>
-   		<node category-path="/scripting/python" factory-class="org.knime.python2.nodes.script.Python2ScriptNodeFactory" after="org.knime.python2.nodes.source.Python2SourceNodeFactory"/>
-        <node category-path="/scripting/python" factory-class="org.knime.python2.nodes.script1in2out.Python2Script1In2OutNodeFactory" after="org.knime.python2.nodes.script.Python2ScriptNodeFactory"/>         
-   		<node category-path="/scripting/python" factory-class="org.knime.python2.nodes.script2in1out.Python2Script2In1OutNodeFactory" after="org.knime.python2.nodes.script1in2out.Python2Script1In2OutNodeFactory"/>  		
-        <node category-path="/scripting/python" factory-class="org.knime.python2.nodes.script2in2out.Python2Script2In2OutNodeFactory" after="org.knime.python2.nodes.script2in1out.Python2Script2In1OutNodeFactory"/>
-   		<node category-path="/scripting/python" factory-class="org.knime.python2.nodes.view.Python2ViewNodeFactory" after="org.knime.python2.nodes.script2in2out.Python2Script2In2OutNodeFactory"/>
-   		<node category-path="/scripting/python" factory-class="org.knime.python2.nodes.objectreader.Python2ObjectReaderNodeFactory" after="org.knime.python2.nodes.view.Python2ViewNodeFactory"/>
-   		<node category-path="/scripting/python" factory-class="org.knime.python2.nodes.objectwriter.Python2ObjectWriterNodeFactory" after="org.knime.python2.nodes.objectreader.Python2ObjectReaderNodeFactory"/>
-   		<node category-path="/scripting/python" factory-class="org.knime.python2.nodes.learner.Python2LearnerNodeFactory" after="org.knime.python2.nodes.objectwriter.Python2ObjectWriterNodeFactory"/>
-   		<node category-path="/scripting/python" factory-class="org.knime.python2.nodes.predictor.Python2PredictorNodeFactory" after="org.knime.python2.nodes.learner.Python2LearnerNodeFactory"/>
-     <node
-           after="org.knime.python2.nodes.predictor.Python2PredictorNodeFactory"
-           category-path="/scripting/python"
-           deprecated="false"
-           factory-class="org.knime.python2.nodes.db.Python2ScriptDBNodeFactory">
+   		<node category-path="/scripting/python" factory-class="org.knime.python2.nodes.variables.Python2VariablesNodeFactory"/>
+   		<node after="org.knime.python2.nodes.variables.Python2VariablesNodeFactory" category-path="/scripting/python" factory-class="org.knime.python2.nodes.source.Python2SourceNodeFactory"/>
+   		<node after="org.knime.python2.nodes.source.Python2SourceNodeFactory" category-path="/scripting/python" factory-class="org.knime.python2.nodes.script.Python2ScriptNodeFactory"/>
+        <node after="org.knime.python2.nodes.script.Python2ScriptNodeFactory" category-path="/scripting/python" factory-class="org.knime.python2.nodes.script1in2out.Python2Script1In2OutNodeFactory"/>         
+   		<node after="org.knime.python2.nodes.script1in2out.Python2Script1In2OutNodeFactory" category-path="/scripting/python" factory-class="org.knime.python2.nodes.script2in1out.Python2Script2In1OutNodeFactory"/>  		
+        <node after="org.knime.python2.nodes.script2in1out.Python2Script2In1OutNodeFactory" category-path="/scripting/python" factory-class="org.knime.python2.nodes.script2in2out.Python2Script2In2OutNodeFactory"/>
+   		<node after="org.knime.python2.nodes.script2in2out.Python2Script2In2OutNodeFactory" category-path="/scripting/python" factory-class="org.knime.python2.nodes.view.Python2ViewNodeFactory"/>
+   		<node after="org.knime.python2.nodes.view.Python2ViewNodeFactory" category-path="/scripting/python" factory-class="org.knime.python2.nodes.objectreader.Python2ObjectReaderNodeFactory"/>
+   		<node after="org.knime.python2.nodes.objectreader.Python2ObjectReaderNodeFactory" category-path="/scripting/python" factory-class="org.knime.python2.nodes.objectwriter.Python2ObjectWriterNodeFactory"/>
+   		<node after="org.knime.python2.nodes.objectwriter.Python2ObjectWriterNodeFactory" category-path="/scripting/python" factory-class="org.knime.python2.nodes.learner.Python2LearnerNodeFactory"/>
+   		<node after="org.knime.python2.nodes.learner.Python2LearnerNodeFactory" category-path="/scripting/python" factory-class="org.knime.python2.nodes.predictor.Python2PredictorNodeFactory"/>
+     <node after="org.knime.python2.nodes.predictor.Python2PredictorNodeFactory" category-path="/scripting/python" deprecated="false" factory-class="org.knime.python2.nodes.db.Python2ScriptDBNodeFactory">
      </node>
-	</extension>
+	<node
+       after="org.knime.python2.nodes.db.Python2ScriptDBNodeFactory"
+       category-path="/scripting/python"
+       deprecated="false"
+       factory-class="org.vincent.python2.PythonTableToContextNodeFactory"
+       id="org.vincent.python2.PythonTableToContextNodeFactory"/>
+</extension>
 	<extension point="org.knime.workbench.repository.categories">
-      	<category description="Python nodes" icon="icons/python.png" level-id="python" name="Python" path="/scripting" />
+      	<category description="Python nodes" icon="icons/python.png" level-id="python" name="Python" path="/scripting"/>
    	</extension>
-     <extension
-           point="org.knime.workbench.repository.registeredFileExtensions">
-        <FileExtensionMapping
-              NodeFactory="org.knime.python2.nodes.objectreader.Python2ObjectReaderNodeFactory">
-           <FileExtension
-                 extension=".pkl">
+     <extension point="org.knime.workbench.repository.registeredFileExtensions">
+        <FileExtensionMapping NodeFactory="org.knime.python2.nodes.objectreader.Python2ObjectReaderNodeFactory">
+           <FileExtension extension=".pkl">
            </FileExtension>
         </FileExtensionMapping>
      </extension>
-     <extension
-           point="org.knime.python2.sourcecodetemplates">
-        <directory
-              path="templates/">
+     <extension point="org.knime.python2.sourcecodetemplates">
+        <directory path="templates/">
         </directory>
      </extension>
 </plugin>
