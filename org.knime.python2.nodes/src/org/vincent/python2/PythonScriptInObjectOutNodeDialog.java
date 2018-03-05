@@ -47,8 +47,9 @@
  */
 package org.vincent.python2;
 
+import org.knime.core.node.BufferedDataTable;
+import org.knime.core.node.DataAwareNodeDialogPane;
 import org.knime.core.node.InvalidSettingsException;
-import org.knime.core.node.NodeDialogPane;
 import org.knime.core.node.NodeSettingsRO;
 import org.knime.core.node.NodeSettingsWO;
 import org.knime.core.node.NotConfigurableException;
@@ -65,7 +66,7 @@ import org.knime.python2.kernel.FlowVariableOptions;
  *
  * @author Patrick Winter, KNIME AG, Zurich, Switzerland
  */
-class PythonScriptInObjectOutNodeDialog extends NodeDialogPane {
+class PythonScriptInObjectOutNodeDialog extends DataAwareNodeDialogPane {
 
     PythonSourceCodePanel m_sourceCodePanel;
 
@@ -105,10 +106,22 @@ class PythonScriptInObjectOutNodeDialog extends NodeDialogPane {
         final PythonScriptInObjectOutNodeConfig config = new PythonScriptInObjectOutNodeConfig();
         config.loadFromInDialog(settings);
         m_sourceCodePanel.loadSettingsFrom(config, specs);
-        m_sourceCodeOptionsPanel.loadSettingsFrom(config);
         m_sourceCodePanel.updateFlowVariables(
             getAvailableFlowVariables().values().toArray(new FlowVariable[getAvailableFlowVariables().size()]));
+        m_sourceCodeOptionsPanel.loadSettingsFrom(config);
+        m_sourceCodePanel.updateData(new BufferedDataTable[]{null});
     }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void loadSettingsFrom(final NodeSettingsRO settings, final BufferedDataTable[] input)
+            throws NotConfigurableException {
+        loadSettingsFrom(settings, new PortObjectSpec[]{input[0] == null ? null : input[0].getDataTableSpec()});
+        m_sourceCodePanel.updateData(input);
+    }
+
 
     /**
      * {@inheritDoc}

@@ -47,8 +47,6 @@
  */
 package org.vincent.python2;
 
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedList;
@@ -56,7 +54,6 @@ import java.util.LinkedList;
 import org.knime.core.node.BufferedDataTable;
 import org.knime.core.node.ExecutionContext;
 import org.knime.core.node.InvalidSettingsException;
-import org.knime.core.node.NodeCreationContext;
 import org.knime.core.node.port.PortObject;
 import org.knime.core.node.port.PortObjectSpec;
 import org.knime.core.node.port.PortType;
@@ -79,20 +76,6 @@ class PythonScriptInObjectOutNodeModel extends PythonNodeModel<PythonScriptInObj
      */
     protected PythonScriptInObjectOutNodeModel() {
         super(new PortType[]{BufferedDataTable.TYPE}, new PortType[]{PickledObjectPortObject.TYPE});
-    }
-
-    protected PythonScriptInObjectOutNodeModel(final NodeCreationContext context) {
-        this();
-        URI uri;
-        try {
-            uri = context.getUrl().toURI();
-        } catch (final URISyntaxException e) {
-            throw new RuntimeException(e.getMessage(), e);
-        }
-        if ((!uri.getScheme().equals("knime")) || (!uri.getHost().equals("LOCAL"))) {
-            throw new RuntimeException("Only pickle files in the local workspace are supported.");
-        }
-        getConfig().setSourceCode(PythonScriptInObjectOutNodeConfig.getDefaultSourceCode(uri.getPath()));
     }
 
     /**

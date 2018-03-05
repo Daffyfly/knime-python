@@ -19,7 +19,8 @@
 		<node after="org.vincent.python2.PythonScript3In1OutNodeFactory" category-path="/scripting/python/vincent" deprecated="false" factory-class="org.vincent.python2.Python2ScriptIn3OutNodeFactory" id="org.vincent.python2.Python2ScriptIn3OutNodeFactory"/>
 		<node after="org.vincent.python2.Python2ScriptIn3OutNodeFactory" category-path="/scripting/python/vincent" deprecated="false" factory-class="org.vincent.python2.PythonScriptInObjectOutNodeFactory" id="org.vincent.python2.PythonScriptInObjectOutNodeFactory"/>
 		<node after="org.vincent.python2.PythonScriptInObjectOutNodeFactory" category-path="/scripting/python/vincent" deprecated="false" factory-class="org.vincent.python2.PythonObjectInScriptOutNodeFactory" id="org.vincent.python2.PythonObjectInScriptOutNodeFactory"/>
-	</extension>
+		<node after="org.vincent.python2.PythonObjectInScriptOutNodeFactory" category-path="/scripting/python/vincent" factory-class="org.vincent.python2.Python3ObjectInScriptOutNodeFactory" id="org.vincent.python2.Python3ObjectInScriptOutNodeFactory"/>
+</extension>
 	<extension point="org.knime.workbench.repository.categories">
       	<category description="Python nodes" icon="icons/python.png" level-id="python" name="Python" path="/scripting"/>
    	</extension>

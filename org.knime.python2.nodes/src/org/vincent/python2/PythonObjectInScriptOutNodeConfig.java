@@ -73,7 +73,7 @@ class PythonObjectInScriptOutNodeConfig extends PythonSourceCodeConfig {
     }
 
     static String getDefaultSourceCode(final String path) {
-        return "//Input object: input_object\n"
+        return "##Input object: input_object\n"
             + "import pandas as pd\n"
         + "output_table=pd.DataFrame()";
     }
