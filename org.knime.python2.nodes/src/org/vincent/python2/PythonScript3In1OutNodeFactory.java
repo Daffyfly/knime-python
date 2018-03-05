@@ -47,42 +47,64 @@
  */
 package org.vincent.python2;
 
-import org.knime.python2.config.PythonSourceCodeConfig;
-import org.knime.python2.generic.VariableNames;
+import org.knime.base.node.util.exttool.ExtToolStderrNodeView;
+import org.knime.base.node.util.exttool.ExtToolStdoutNodeView;
+import org.knime.core.node.NodeDialogPane;
+import org.knime.core.node.NodeFactory;
+import org.knime.core.node.NodeView;
 
-class PythonTableToContextNodeConfig extends PythonSourceCodeConfig {
-
-    private static final VariableNames VARIABLE_NAMES =
-            new VariableNames("flow_variables",  new String[]{"input_table"}, null, null, null, new String[]{"output_object"});
+/**
+ * <code>NodeFactory</code> for the node.
+ *
+ *
+ * @author Patrick Winter, KNIME AG, Zurich, Switzerland
+ */
+public class PythonScript3In1OutNodeFactory extends NodeFactory<PythonScript3In1OutNodeModel> {
 
     /**
      * {@inheritDoc}
      */
     @Override
-    protected String getDefaultSourceCode() {
-        return getDefaultSourceCode("");
+    public PythonScript3In1OutNodeModel createNodeModel() {
+        return new PythonScript3In1OutNodeModel();
     }
 
     /**
-     * Get the variable names for this node
-     *
-     * @return The variable names
+     * {@inheritDoc}
      */
-    static VariableNames getVariableNames() {
-        return VARIABLE_NAMES;
+    @Override
+    public int getNrNodeViews() {
+        return 2;
     }
 
-    static String getDefaultSourceCode(final String path) {
-        return "import pickle\n" + "import os\n" + "import shelve\n" + "table =" + VARIABLE_NAMES.getInputTables()[0]
-        + "\n# Load object from pickle file\n" + VARIABLE_NAMES.getOutputObjects()[0]
-        + " =my_shelf = shelve.open('test_shelve','n')\n"
-        + "for key in globals().keys():\n"
-        + "\ttry:\n"
-        + "\t\tmy_shelf[key] = globals()[key]\n"
-        + "\texcept:\n"
-        + "\t\tpass\n"
-        + "my_shelf.close()"
-        + "object_output=my_shelf;";
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public NodeView<PythonScript3In1OutNodeModel> createNodeView(final int viewIndex,
+        final PythonScript3In1OutNodeModel nodeModel) {
+        if (viewIndex == 0) {
+            return new ExtToolStdoutNodeView<PythonScript3In1OutNodeModel>(nodeModel);
+        } else if (viewIndex == 1) {
+            return new ExtToolStderrNodeView<PythonScript3In1OutNodeModel>(nodeModel);
+        }
+        return null;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean hasDialog() {
+        return true;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public NodeDialogPane createNodeDialogPane() {
+        return new PythonScript3In1OutNodeDialog();
     }
 
 }

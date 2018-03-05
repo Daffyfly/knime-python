@@ -50,10 +50,10 @@ package org.vincent.python2;
 import org.knime.python2.config.PythonSourceCodeConfig;
 import org.knime.python2.generic.VariableNames;
 
-class PythonTableToContextNodeConfig extends PythonSourceCodeConfig {
+class PythonObjectInScriptOutNodeConfig extends PythonSourceCodeConfig {
 
     private static final VariableNames VARIABLE_NAMES =
-            new VariableNames("flow_variables",  new String[]{"input_table"}, null, null, null, new String[]{"output_object"});
+            new VariableNames("flow_variables",null ,  new String[]{"output_table"}, null,  new String[]{"input_object"},null);
 
     /**
      * {@inheritDoc}
@@ -73,16 +73,9 @@ class PythonTableToContextNodeConfig extends PythonSourceCodeConfig {
     }
 
     static String getDefaultSourceCode(final String path) {
-        return "import pickle\n" + "import os\n" + "import shelve\n" + "table =" + VARIABLE_NAMES.getInputTables()[0]
-        + "\n# Load object from pickle file\n" + VARIABLE_NAMES.getOutputObjects()[0]
-        + " =my_shelf = shelve.open('test_shelve','n')\n"
-        + "for key in globals().keys():\n"
-        + "\ttry:\n"
-        + "\t\tmy_shelf[key] = globals()[key]\n"
-        + "\texcept:\n"
-        + "\t\tpass\n"
-        + "my_shelf.close()"
-        + "object_output=my_shelf;";
+        return "//Input object: input_object\n"
+            + "import pandas as pd\n"
+        + "output_table=pd.DataFrame()";
     }
 
 }

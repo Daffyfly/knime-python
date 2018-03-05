@@ -72,16 +72,16 @@ import org.knime.python2.port.PickledObjectPortObject;
  *
  * @author Patrick Winter, KNIME AG, Zurich, Switzerland
  */
-class PythonTableToContextNodeModel extends PythonNodeModel<PythonTableToContextNodeConfig> {
+class PythonScriptInObjectOutNodeModel extends PythonNodeModel<PythonScriptInObjectOutNodeConfig> {
 
     /**
      * Constructor for the node model.
      */
-    protected PythonTableToContextNodeModel() {
+    protected PythonScriptInObjectOutNodeModel() {
         super(new PortType[]{BufferedDataTable.TYPE}, new PortType[]{PickledObjectPortObject.TYPE});
     }
 
-    protected PythonTableToContextNodeModel(final NodeCreationContext context) {
+    protected PythonScriptInObjectOutNodeModel(final NodeCreationContext context) {
         this();
         URI uri;
         try {
@@ -92,7 +92,7 @@ class PythonTableToContextNodeModel extends PythonNodeModel<PythonTableToContext
         if ((!uri.getScheme().equals("knime")) || (!uri.getHost().equals("LOCAL"))) {
             throw new RuntimeException("Only pickle files in the local workspace are supported.");
         }
-        getConfig().setSourceCode(PythonTableToContextNodeConfig.getDefaultSourceCode(uri.getPath()));
+        getConfig().setSourceCode(PythonScriptInObjectOutNodeConfig.getDefaultSourceCode(uri.getPath()));
     }
 
     /**
@@ -102,17 +102,17 @@ class PythonTableToContextNodeModel extends PythonNodeModel<PythonTableToContext
     protected PortObject[] execute(final PortObject[] inData, final ExecutionContext exec) throws Exception {
         PickledObject object = null;
         try (final PythonKernel kernel = new PythonKernel(getKernelOptions())) {
-            kernel.putFlowVariables(PythonTableToContextNodeConfig.getVariableNames().getFlowVariables(),
+            kernel.putFlowVariables(PythonScriptInObjectOutNodeConfig.getVariableNames().getFlowVariables(),
                 getAvailableFlowVariables().values());
-            kernel.putDataTable(PythonTableToContextNodeConfig.getVariableNames().getInputTables()[0], (BufferedDataTable)inData[0],
+            kernel.putDataTable(PythonScriptInObjectOutNodeConfig.getVariableNames().getInputTables()[0], (BufferedDataTable)inData[0],
                 exec.createSubProgress(0.3));
             final String[] output = kernel.execute(getConfig().getSourceCode(), exec);
             setExternalOutput(new LinkedList<String>(Arrays.asList(output[0].split("\n"))));
             setExternalErrorOutput(new LinkedList<String>(Arrays.asList(output[1].split("\n"))));
             exec.createSubProgress(0.9).setProgress(1);
             final Collection<FlowVariable> variables =
-                kernel.getFlowVariables(PythonTableToContextNodeConfig.getVariableNames().getFlowVariables());
-            object = kernel.getObject(PythonTableToContextNodeConfig.getVariableNames().getOutputObjects()[0], exec);
+                kernel.getFlowVariables(PythonScriptInObjectOutNodeConfig.getVariableNames().getFlowVariables());
+            object = kernel.getObject(PythonScriptInObjectOutNodeConfig.getVariableNames().getOutputObjects()[0], exec);
             System.out.println(object.getType());
             exec.createSubProgress(0.1).setProgress(1);
             addNewVariables(variables);
@@ -129,8 +129,8 @@ class PythonTableToContextNodeModel extends PythonNodeModel<PythonTableToContext
     }
 
     @Override
-    protected PythonTableToContextNodeConfig createConfig() {
-        return new PythonTableToContextNodeConfig();
+    protected PythonScriptInObjectOutNodeConfig createConfig() {
+        return new PythonScriptInObjectOutNodeConfig();
     }
 
 }

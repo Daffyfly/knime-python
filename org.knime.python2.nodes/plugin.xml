@@ -12,17 +12,19 @@
    		<node after="org.knime.python2.nodes.objectreader.Python2ObjectReaderNodeFactory" category-path="/scripting/python" factory-class="org.knime.python2.nodes.objectwriter.Python2ObjectWriterNodeFactory"/>
    		<node after="org.knime.python2.nodes.objectwriter.Python2ObjectWriterNodeFactory" category-path="/scripting/python" factory-class="org.knime.python2.nodes.learner.Python2LearnerNodeFactory"/>
    		<node after="org.knime.python2.nodes.learner.Python2LearnerNodeFactory" category-path="/scripting/python" factory-class="org.knime.python2.nodes.predictor.Python2PredictorNodeFactory"/>
-     <node after="org.knime.python2.nodes.predictor.Python2PredictorNodeFactory" category-path="/scripting/python" deprecated="false" factory-class="org.knime.python2.nodes.db.Python2ScriptDBNodeFactory">
-     </node>
-	<node
-       after="org.knime.python2.nodes.db.Python2ScriptDBNodeFactory"
-       category-path="/scripting/python"
-       deprecated="false"
-       factory-class="org.vincent.python2.PythonTableToContextNodeFactory"
-       id="org.vincent.python2.PythonTableToContextNodeFactory"/>
-</extension>
+	     <node after="org.knime.python2.nodes.predictor.Python2PredictorNodeFactory" category-path="/scripting/python" deprecated="false" factory-class="org.knime.python2.nodes.db.Python2ScriptDBNodeFactory">
+	     </node>
+		<node category-path="/scripting/python/vincent" deprecated="false" factory-class="org.vincent.python2.PythonTableToContextNodeFactory" id="org.vincent.python2.PythonTableToContextNodeFactory"/>
+		<node after="org.vincent.python2.PythonTableToContextNodeFactory" category-path="/scripting/python/vincent" deprecated="false" factory-class="org.vincent.python2.PythonScript3In1OutNodeFactory" id="org.vincent.python2.PythonScript3In1OutNodeFactory"/>
+		<node after="org.vincent.python2.PythonScript3In1OutNodeFactory" category-path="/scripting/python/vincent" deprecated="false" factory-class="org.vincent.python2.Python2ScriptIn3OutNodeFactory" id="org.vincent.python2.Python2ScriptIn3OutNodeFactory"/>
+		<node after="org.vincent.python2.Python2ScriptIn3OutNodeFactory" category-path="/scripting/python/vincent" deprecated="false" factory-class="org.vincent.python2.PythonScriptInObjectOutNodeFactory" id="org.vincent.python2.PythonScriptInObjectOutNodeFactory"/>
+		<node after="org.vincent.python2.PythonScriptInObjectOutNodeFactory" category-path="/scripting/python/vincent" deprecated="false" factory-class="org.vincent.python2.PythonObjectInScriptOutNodeFactory" id="org.vincent.python2.PythonObjectInScriptOutNodeFactory"/>
+	</extension>
 	<extension point="org.knime.workbench.repository.categories">
       	<category description="Python nodes" icon="icons/python.png" level-id="python" name="Python" path="/scripting"/>
+   	</extension>
+   	<extension point="org.knime.workbench.repository.categories">
+      	<category description="Python nodes" icon="icons/python.png" level-id="vincent" name="VincentNodes" path="/scripting/python/"/>
    	</extension>
      <extension point="org.knime.workbench.repository.registeredFileExtensions">
         <FileExtensionMapping NodeFactory="org.knime.python2.nodes.objectreader.Python2ObjectReaderNodeFactory">
