@@ -49,9 +49,8 @@ package org.vincent.python2;
 
 import org.knime.base.node.util.exttool.ExtToolStderrNodeView;
 import org.knime.base.node.util.exttool.ExtToolStdoutNodeView;
-import org.knime.core.node.ContextAwareNodeFactory;
-import org.knime.core.node.NodeCreationContext;
 import org.knime.core.node.NodeDialogPane;
+import org.knime.core.node.NodeFactory;
 import org.knime.core.node.NodeView;
 
 /**
@@ -60,7 +59,7 @@ import org.knime.core.node.NodeView;
  *
  * @author Patrick Winter, KNIME AG, Zurich, Switzerland
  */
-public class PythonScriptInObjectOutNodeFactory extends ContextAwareNodeFactory<PythonScriptInObjectOutNodeModel> {
+public class PythonScriptInObjectOutNodeFactory extends NodeFactory<PythonScriptInObjectOutNodeModel> {
 
     /**
      * {@inheritDoc}
@@ -105,12 +104,8 @@ public class PythonScriptInObjectOutNodeFactory extends ContextAwareNodeFactory<
      */
     @Override
     public NodeDialogPane createNodeDialogPane() {
-        return new PythonTableToContextNodeDialog();
+        return new PythonScriptInObjectOutNodeDialog();
     }
 
-    @Override
-    public PythonScriptInObjectOutNodeModel createNodeModel(final NodeCreationContext context) {
-        return new PythonScriptInObjectOutNodeModel(context);
-    }
 
 }

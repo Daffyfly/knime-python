@@ -50,10 +50,10 @@ package org.vincent.python2;
 import org.knime.python2.config.PythonSourceCodeConfig;
 import org.knime.python2.generic.VariableNames;
 
-class PythonScriptInObjectOutNodeConfig extends PythonSourceCodeConfig {
+class Python3ObjectInScriptOutNodeConfig extends PythonSourceCodeConfig {
 
     private static final VariableNames VARIABLE_NAMES =
-            new VariableNames("flow_variables",  new String[]{"input_table"}, null, null, null, new String[]{"output_object"});
+            new VariableNames("flow_variables",null ,  new String[]{"output_table"}, null,  new String[]{"input_object1","input_object2","input_object3"},null);
 
     /**
      * {@inheritDoc}
@@ -73,7 +73,9 @@ class PythonScriptInObjectOutNodeConfig extends PythonSourceCodeConfig {
     }
 
     static String getDefaultSourceCode(final String path) {
-        return "output_object={};";
+        return "##Input object: input_object\n"
+            + "import pandas as pd\n"
+        + "output_table=pd.DataFrame()";
     }
 
 }
