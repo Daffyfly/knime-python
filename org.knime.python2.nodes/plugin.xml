@@ -14,6 +14,10 @@
    		<node after="org.knime.python2.nodes.learner.Python2LearnerNodeFactory" category-path="/scripting/python" factory-class="org.knime.python2.nodes.predictor.Python2PredictorNodeFactory"/>
 	     <node after="org.knime.python2.nodes.predictor.Python2PredictorNodeFactory" category-path="/scripting/python" deprecated="false" factory-class="org.knime.python2.nodes.db.Python2ScriptDBNodeFactory">
 	     </node>
+	    
+	     <node after="org.knime.python2.nodes.db.Python2ScriptDBNodeFactory" category-path="/scripting/python" factory-class="org.vincent.python2.view.Python2View2NodeFactory" id="org.vincent.python2.view.Python2View2NodeFactory"/>
+	      <node after="org.vincent.python2.view.Python2View2NodeFactory" category-path="/scripting/python" factory-class="org.vincent.python2.view.object.Python2ObjectViewNodeFactory" id="org.vincent.python2.view.object.Python2ObjectViewNodeFactory"/>
+	     
 		<node category-path="/scripting/python/vincent" deprecated="false" factory-class="org.vincent.python2.PythonTableToContextNodeFactory" id="org.vincent.python2.PythonTableToContextNodeFactory"/>
 		<node after="org.vincent.python2.PythonTableToContextNodeFactory" category-path="/scripting/python/vincent" deprecated="false" factory-class="org.vincent.python2.PythonScript3In1OutNodeFactory" id="org.vincent.python2.PythonScript3In1OutNodeFactory"/>
 		<node after="org.vincent.python2.PythonScript3In1OutNodeFactory" category-path="/scripting/python/vincent" deprecated="false" factory-class="org.vincent.python2.Python2ScriptIn3OutNodeFactory" id="org.vincent.python2.Python2ScriptIn3OutNodeFactory"/>
