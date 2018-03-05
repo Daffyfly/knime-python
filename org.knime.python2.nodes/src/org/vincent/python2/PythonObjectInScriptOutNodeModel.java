@@ -63,7 +63,6 @@ import org.knime.core.node.port.PortType;
 import org.knime.core.node.workflow.FlowVariable;
 import org.knime.python2.kernel.PythonKernel;
 import org.knime.python2.nodes.PythonNodeModel;
-import org.knime.python2.port.PickledObject;
 import org.knime.python2.port.PickledObjectPortObject;
 
 /**
@@ -72,16 +71,16 @@ import org.knime.python2.port.PickledObjectPortObject;
  *
  * @author Patrick Winter, KNIME AG, Zurich, Switzerland
  */
-class PythonTableToContextNodeModel extends PythonNodeModel<PythonTableToContextNodeConfig> {
+class PythonObjectInScriptOutNodeModel extends PythonNodeModel<PythonObjectInScriptOutNodeConfig> {
 
     /**
      * Constructor for the node model.
      */
-    protected PythonTableToContextNodeModel() {
-        super(new PortType[]{BufferedDataTable.TYPE}, new PortType[]{PickledObjectPortObject.TYPE});
+    protected PythonObjectInScriptOutNodeModel() {
+        super(new PortType[]{PickledObjectPortObject.TYPE}, new PortType[]{BufferedDataTable.TYPE});
     }
 
-    protected PythonTableToContextNodeModel(final NodeCreationContext context) {
+    protected PythonObjectInScriptOutNodeModel(final NodeCreationContext context) {
         this();
         URI uri;
         try {
@@ -92,7 +91,7 @@ class PythonTableToContextNodeModel extends PythonNodeModel<PythonTableToContext
         if ((!uri.getScheme().equals("knime")) || (!uri.getHost().equals("LOCAL"))) {
             throw new RuntimeException("Only pickle files in the local workspace are supported.");
         }
-        getConfig().setSourceCode(PythonTableToContextNodeConfig.getDefaultSourceCode(uri.getPath()));
+        getConfig().setSourceCode(PythonObjectInScriptOutNodeConfig.getDefaultSourceCode(uri.getPath()));
     }
 
     /**
@@ -100,24 +99,24 @@ class PythonTableToContextNodeModel extends PythonNodeModel<PythonTableToContext
      */
     @Override
     protected PortObject[] execute(final PortObject[] inData, final ExecutionContext exec) throws Exception {
-        PickledObject object = null;
+        BufferedDataTable dt = null;
         try (final PythonKernel kernel = new PythonKernel(getKernelOptions())) {
-            kernel.putFlowVariables(PythonTableToContextNodeConfig.getVariableNames().getFlowVariables(),
+            kernel.putFlowVariables(PythonObjectInScriptOutNodeConfig.getVariableNames().getFlowVariables(),
                 getAvailableFlowVariables().values());
-            kernel.putDataTable(PythonTableToContextNodeConfig.getVariableNames().getInputTables()[0], (BufferedDataTable)inData[0],
-                exec.createSubProgress(0.3));
+
+            PickledObjectPortObject object = (PickledObjectPortObject) inData[0];
+            kernel.putObject(PythonObjectInScriptOutNodeConfig.getVariableNames().getInputObjects()[0], object.getPickledObject());
             final String[] output = kernel.execute(getConfig().getSourceCode(), exec);
             setExternalOutput(new LinkedList<String>(Arrays.asList(output[0].split("\n"))));
             setExternalErrorOutput(new LinkedList<String>(Arrays.asList(output[1].split("\n"))));
             exec.createSubProgress(0.9).setProgress(1);
             final Collection<FlowVariable> variables =
-                kernel.getFlowVariables(PythonTableToContextNodeConfig.getVariableNames().getFlowVariables());
-            object = kernel.getObject(PythonTableToContextNodeConfig.getVariableNames().getOutputObjects()[0], exec);
-            System.out.println(object.getType());
+                kernel.getFlowVariables(PythonObjectInScriptOutNodeConfig.getVariableNames().getFlowVariables());
+            dt = kernel.getDataTable(PythonObjectInScriptOutNodeConfig.getVariableNames().getOutputTables()[0], exec, exec.createSubProgress(0.3));
             exec.createSubProgress(0.1).setProgress(1);
             addNewVariables(variables);
         }
-        return new PortObject[]{new PickledObjectPortObject(object)};
+        return new PortObject[]{dt};
     }
 
     /**
@@ -129,8 +128,8 @@ class PythonTableToContextNodeModel extends PythonNodeModel<PythonTableToContext
     }
 
     @Override
-    protected PythonTableToContextNodeConfig createConfig() {
-        return new PythonTableToContextNodeConfig();
+    protected PythonObjectInScriptOutNodeConfig createConfig() {
+        return new PythonObjectInScriptOutNodeConfig();
     }
 
 }

@@ -47,24 +47,18 @@
  */
 package org.vincent.python2;
 
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedList;
 
+import org.knime.core.data.DataTableSpec;
 import org.knime.core.node.BufferedDataTable;
 import org.knime.core.node.ExecutionContext;
 import org.knime.core.node.InvalidSettingsException;
-import org.knime.core.node.NodeCreationContext;
-import org.knime.core.node.port.PortObject;
-import org.knime.core.node.port.PortObjectSpec;
 import org.knime.core.node.port.PortType;
 import org.knime.core.node.workflow.FlowVariable;
 import org.knime.python2.kernel.PythonKernel;
 import org.knime.python2.nodes.PythonNodeModel;
-import org.knime.python2.port.PickledObject;
-import org.knime.python2.port.PickledObjectPortObject;
 
 /**
  * This is the model implementation.
@@ -72,65 +66,55 @@ import org.knime.python2.port.PickledObjectPortObject;
  *
  * @author Patrick Winter, KNIME AG, Zurich, Switzerland
  */
-class PythonTableToContextNodeModel extends PythonNodeModel<PythonTableToContextNodeConfig> {
+class PythonScript3In1OutNodeModel extends PythonNodeModel<PythonScript3In1OutNodeConfig> {
 
     /**
      * Constructor for the node model.
      */
-    protected PythonTableToContextNodeModel() {
-        super(new PortType[]{BufferedDataTable.TYPE}, new PortType[]{PickledObjectPortObject.TYPE});
-    }
-
-    protected PythonTableToContextNodeModel(final NodeCreationContext context) {
-        this();
-        URI uri;
-        try {
-            uri = context.getUrl().toURI();
-        } catch (final URISyntaxException e) {
-            throw new RuntimeException(e.getMessage(), e);
-        }
-        if ((!uri.getScheme().equals("knime")) || (!uri.getHost().equals("LOCAL"))) {
-            throw new RuntimeException("Only pickle files in the local workspace are supported.");
-        }
-        getConfig().setSourceCode(PythonTableToContextNodeConfig.getDefaultSourceCode(uri.getPath()));
+    protected PythonScript3In1OutNodeModel() {
+        super(new PortType[]{BufferedDataTable.TYPE, BufferedDataTable.TYPE, BufferedDataTable.TYPE}, new PortType[]{BufferedDataTable.TYPE});
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    protected PortObject[] execute(final PortObject[] inData, final ExecutionContext exec) throws Exception {
-        PickledObject object = null;
+    protected BufferedDataTable[] execute(final BufferedDataTable[] inData, final ExecutionContext exec)
+        throws Exception {
+        BufferedDataTable table = null;
         try (final PythonKernel kernel = new PythonKernel(getKernelOptions())) {
-            kernel.putFlowVariables(PythonTableToContextNodeConfig.getVariableNames().getFlowVariables(),
+            kernel.putFlowVariables(PythonScript3In1OutNodeConfig.getVariableNames().getFlowVariables(),
                 getAvailableFlowVariables().values());
-            kernel.putDataTable(PythonTableToContextNodeConfig.getVariableNames().getInputTables()[0], (BufferedDataTable)inData[0],
-                exec.createSubProgress(0.3));
+            kernel.putDataTable(PythonScript3In1OutNodeConfig.getVariableNames().getInputTables()[0], inData[0],
+                exec.createSubProgress(0.15));
+            kernel.putDataTable(PythonScript3In1OutNodeConfig.getVariableNames().getInputTables()[1], inData[1],
+                exec.createSubProgress(0.15));
+            kernel.putDataTable(PythonScript3In1OutNodeConfig.getVariableNames().getInputTables()[2], inData[2],
+                exec.createSubProgress(0.15));
             final String[] output = kernel.execute(getConfig().getSourceCode(), exec);
             setExternalOutput(new LinkedList<String>(Arrays.asList(output[0].split("\n"))));
             setExternalErrorOutput(new LinkedList<String>(Arrays.asList(output[1].split("\n"))));
-            exec.createSubProgress(0.9).setProgress(1);
+            exec.createSubProgress(0.4).setProgress(1);
             final Collection<FlowVariable> variables =
-                kernel.getFlowVariables(PythonTableToContextNodeConfig.getVariableNames().getFlowVariables());
-            object = kernel.getObject(PythonTableToContextNodeConfig.getVariableNames().getOutputObjects()[0], exec);
-            System.out.println(object.getType());
-            exec.createSubProgress(0.1).setProgress(1);
+                kernel.getFlowVariables(PythonScript3In1OutNodeConfig.getVariableNames().getFlowVariables());
+            table = kernel.getDataTable(PythonScript3In1OutNodeConfig.getVariableNames().getOutputTables()[0], exec,
+                exec.createSubProgress(0.3));
             addNewVariables(variables);
         }
-        return new PortObject[]{new PickledObjectPortObject(object)};
+        return new BufferedDataTable[]{table};
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    protected PortObjectSpec[] configure(final PortObjectSpec[] inSpecs) throws InvalidSettingsException {
-        return new PortObjectSpec[]{null};
+    protected DataTableSpec[] configure(final DataTableSpec[] inSpecs) throws InvalidSettingsException {
+        return new DataTableSpec[]{null};
     }
 
     @Override
-    protected PythonTableToContextNodeConfig createConfig() {
-        return new PythonTableToContextNodeConfig();
+    protected PythonScript3In1OutNodeConfig createConfig() {
+        return new PythonScript3In1OutNodeConfig();
     }
 
 }
